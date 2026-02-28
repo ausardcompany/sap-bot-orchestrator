@@ -68,19 +68,22 @@ jobs:
         with:
           node-version: '22'
       
-      - name: Install Kilo CLI
+      - name: Build sap-bot-orchestrator CLI
         run: |
-          echo "Installing Kilo CLI..."
-          npm install -g @kilocode/cli
-          kilo --version
+          echo "Installing dependencies..."
+          npm ci
+          echo "Building project..."
+          npm run build
+          echo "[OK] sap-bot-orchestrator CLI built successfully"
+          node dist/cli/program.js --help
       
-      - name: Verify Kilo CLI installation
+      - name: Verify CLI and SAP AI Core configuration
         env:
-          AICORE_RESOURCE_GROUP: ${{ secrets.AICORE_RESOURCE_GROUP }}
-          AICORE_SERVICE_KEY: ${{ secrets.AICORE_SERVICE_KEY }}
+          AICORE_RESOURCE_GROUP: ${​{ secrets.AICORE_RESOURCE_GROUP }}
+          AICORE_SERVICE_KEY: ${​{ secrets.AICORE_SERVICE_KEY }}
         run: |
-          echo "Verifying Kilo CLI and SAP AI Core configuration..."
-          echo "[OK] Kilo version: $(kilo --version)"
+          echo "Verifying sap-bot-orchestrator CLI and SAP AI Core configuration..."
+          echo "[OK] CLI version: $(node dist/cli/program.js --version 2>/dev/null || echo '0.1.0')"
           echo "[OK] SAP AI Core credentials configured via environment variables"
           echo "     Resource Group: $AICORE_RESOURCE_GROUP"
           echo "     Service Key: [configured]"
@@ -449,7 +452,7 @@ jobs:
           # Add footer
           cat "$TEMPLATES_DIR/08-footer.md" >> kilo-prompt.md
           
-          echo "[OK] Kilo prompt built from templates"
+          echo "[OK] Bot prompt built from templates"
           echo "Prompt size: $(wc -l < kilo-prompt.md) lines"
           cat kilo-prompt.md
       
@@ -460,45 +463,46 @@ jobs:
           mkdir -p docs
           echo "[OK] Documentation directories prepared"
       
-      - name: Run Kilo documentation generation
+      - name: Run documentation generation with own CLI
         if: steps.check_needed.outputs.skip != 'true'
         env:
-          AICORE_RESOURCE_GROUP: ${{ secrets.AICORE_RESOURCE_GROUP }}
-          AICORE_SERVICE_KEY: ${{ secrets.AICORE_SERVICE_KEY }}
-        id: kilo
+          AICORE_RESOURCE_GROUP: ${​{ secrets.AICORE_RESOURCE_GROUP }}
+          AICORE_SERVICE_KEY: ${​{ secrets.AICORE_SERVICE_KEY }}
+        id: bot
         continue-on-error: true
         run: |
-          echo "Running Kilo CLI with SAP AI Core (Claude 4.5 Sonnet)..."
+          echo "Running sap-bot-orchestrator CLI with SAP AI Core..."
           
-          # Run Kilo with the prompt
-          kilo run \
-            --model "sap-ai-core/anthropic--claude-4.5-sonnet" \
-            --auto \
-            -f kilo-prompt.md \
-            -- "Execute the documentation generation task in the attached file" \
-            > kilo-output.log 2>&1
+          # Read prompt from file and run with own CLI
+          PROMPT=$(cat kilo-prompt.md)
           
-          KILO_EXIT_CODE=$?
+          node dist/cli/program.js chat \
+            --message "$PROMPT" \
+            --auto-route \
+            --system "You are an expert technical writer generating documentation. Follow the instructions exactly and update the files directly. Output only the documentation changes." \
+            > bot-output.log 2>&1
           
-          echo "exit_code=$KILO_EXIT_CODE" >> $GITHUB_OUTPUT
+          BOT_EXIT_CODE=$?
           
-          if [ $KILO_EXIT_CODE -eq 0 ]; then
+          echo "exit_code=$BOT_EXIT_CODE" >> $GITHUB_OUTPUT
+          
+          if [ $BOT_EXIT_CODE -eq 0 ]; then
             echo "success=true" >> $GITHUB_OUTPUT
-            echo "[OK] Kilo completed successfully"
+            echo "[OK] Documentation generation completed successfully"
           else
             echo "success=false" >> $GITHUB_OUTPUT
-            echo "[ERROR] Kilo failed with exit code $KILO_EXIT_CODE"
+            echo "[ERROR] Documentation generation failed with exit code $BOT_EXIT_CODE"
           fi
           
           # Show output (last 100 lines to avoid overwhelming logs)
-          echo "=== Kilo Output (last 100 lines) ==="
-          tail -100 kilo-output.log
+          echo "=== Bot Output (last 100 lines) ==="
+          tail -100 bot-output.log
           
           # Show full output as artifact
           echo "=== Full output available in artifacts ==="
       
       - name: Commit and push documentation changes
-        if: steps.check_needed.outputs.skip != 'true' && steps.kilo.outputs.success == 'true'
+        if: steps.check_needed.outputs.skip != 'true' && steps.bot.outputs.success == 'true'
         run: |
           # Check if there are changes
           if git diff --quiet; then
@@ -534,101 +538,101 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: ${{ steps.pr_number.outputs.pr_number }},
-              body: '## Documentation Update Skipped\n\nNo code changes detected since the last documentation generation. The documentation is already up to date.\n\n---\nGenerated by [Kilo CLI](https://kilo.ai)'
+              body: '## Documentation Update Skipped\\n\\nNo code changes detected since the last documentation generation. The documentation is already up to date.\\n\\n---\\nGenerated by [sap-bot-orchestrator](https://github.com/ausard/sap-bot-orchestrator)'
             });
       
       - name: Post success comment
-        if: steps.check_needed.outputs.skip != 'true' && steps.kilo.outputs.success == 'true'
+        if: steps.check_needed.outputs.skip != 'true' && steps.bot.outputs.success == 'true'
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${​{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             
-            let comment = '## Documentation Auto-Generated Successfully\n\n';
-            comment += 'Documentation has been automatically generated using **Kilo CLI** with **Claude 4.5 Sonnet** (SAP AI Core).\n\n';
+            let comment = '## Documentation Auto-Generated Successfully\\n\\n';
+            comment += 'Documentation has been automatically generated using **sap-bot-orchestrator** with SAP AI Core.\\n\\n';
             
             // Add scope
             if (fs.existsSync('scope.md')) {
-              comment += fs.readFileSync('scope.md', 'utf8') + '\n\n';
+              comment += fs.readFileSync('scope.md', 'utf8') + '\\n\\n';
             }
             
             // Add changed files
             if (fs.existsSync('analysis.md')) {
-              comment += '### Analysis\n\n';
-              comment += fs.readFileSync('analysis.md', 'utf8') + '\n\n';
+              comment += '### Analysis\\n\\n';
+              comment += fs.readFileSync('analysis.md', 'utf8') + '\\n\\n';
             }
             
-            comment += '### Next Steps\n\n';
-            comment += '1. Review the generated documentation\n';
-            comment += '2. Check Mermaid diagrams render correctly\n';
-            comment += '3. Verify all changes are accurate\n';
-            comment += '4. Merge this PR if documentation looks good\n\n';
-            comment += '---\n';
-            comment += 'Generated by [Kilo CLI](https://kilo.ai) with Claude 4.5 Sonnet\n';
+            comment += '### Next Steps\\n\\n';
+            comment += '1. Review the generated documentation\\n';
+            comment += '2. Check Mermaid diagrams render correctly\\n';
+            comment += '3. Verify all changes are accurate\\n';
+            comment += '4. Merge this PR if documentation looks good\\n\\n';
+            comment += '---\\n';
+            comment += 'Generated by [sap-bot-orchestrator](https://github.com/ausard/sap-bot-orchestrator) (self-updating bot)\\n';
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: ${{ steps.pr_number.outputs.pr_number }},
+              issue_number: ${​{ steps.pr_number.outputs.pr_number }},
               body: comment
             });
       
       - name: Post failure comment
-        if: steps.check_needed.outputs.skip != 'true' && steps.kilo.outputs.success == 'false'
+        if: steps.check_needed.outputs.skip != 'true' && steps.bot.outputs.success == 'false'
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${​{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             
-            let comment = '## Documentation Auto-Generation Failed\n\n';
-            comment += 'Kilo CLI encountered an error while generating documentation.\n\n';
+            let comment = '## Documentation Auto-Generation Failed\\n\\n';
+            comment += 'sap-bot-orchestrator encountered an error while generating documentation.\\n\\n';
             
-            comment += '### Error Details\n\n';
-            if (fs.existsSync('kilo-output.log')) {
-              const log = fs.readFileSync('kilo-output.log', 'utf8');
-              comment += '```\n' + log.slice(-2000) + '\n```\n\n';
+            comment += '### Error Details\\n\\n';
+            if (fs.existsSync('bot-output.log')) {
+              const log = fs.readFileSync('bot-output.log', 'utf8');
+              comment += '```\\n' + log.slice(-2000) + '\\n```\\n\\n';
             }
             
-            comment += '### Manual Documentation Checklist\n\n';
+            comment += '### Manual Documentation Checklist\\n\\n';
             
-            if ('${{ steps.analyze.outputs.cli_changed }}' === 'true' || '${{ steps.analyze.outputs.core_changed }}' === 'true') {
-              comment += '- [ ] Update `docs/ARCHITECTURE.md`\n';
-              comment += '- [ ] Update `docs/API.md`\n';
-              comment += '- [ ] Add/update Mermaid diagrams (minimum 3)\n';
+            if ('${​{ steps.analyze.outputs.cli_changed }}' === 'true' || '${​{ steps.analyze.outputs.core_changed }}' === 'true') {
+              comment += '- [ ] Update `docs/ARCHITECTURE.md`\\n';
+              comment += '- [ ] Update `docs/API.md`\\n';
+              comment += '- [ ] Add/update Mermaid diagrams (minimum 3)\\n';
             }
             
-            if ('${{ steps.analyze.outputs.routing_changed }}' === 'true') {
-              comment += '- [ ] Update `docs/ROUTING.md`\n';
+            if ('${​{ steps.analyze.outputs.routing_changed }}' === 'true') {
+              comment += '- [ ] Update `docs/ROUTING.md`\\n';
             }
             
-            if ('${{ steps.analyze.outputs.providers_changed }}' === 'true') {
-              comment += '- [ ] Update `docs/PROVIDERS.md`\n';
+            if ('${​{ steps.analyze.outputs.providers_changed }}' === 'true') {
+              comment += '- [ ] Update `docs/PROVIDERS.md`\\n';
             }
             
-            if ('${{ steps.analyze.outputs.config_changed }}' === 'true') {
-              comment += '- [ ] Update `docs/CONFIGURATION.md`\n';
+            if ('${​{ steps.analyze.outputs.config_changed }}' === 'true') {
+              comment += '- [ ] Update `docs/CONFIGURATION.md`\\n';
             }
             
-            if ('${{ steps.analyze.outputs.tests_changed }}' === 'true') {
-              comment += '- [ ] Update `docs/TESTING.md`\n';
+            if ('${​{ steps.analyze.outputs.tests_changed }}' === 'true') {
+              comment += '- [ ] Update `docs/TESTING.md`\\n';
             }
             
-            if ('${{ steps.analyze.outputs.workflows_changed }}' === 'true' || '${{ steps.analyze.outputs.scripts_changed }}' === 'true') {
-              comment += '- [ ] Update `docs/AUTOMATION.md`\n';
+            if ('${​{ steps.analyze.outputs.workflows_changed }}' === 'true' || '${​{ steps.analyze.outputs.scripts_changed }}' === 'true') {
+              comment += '- [ ] Update `docs/AUTOMATION.md`\\n';
             }
             
-            comment += '- [ ] Update `CHANGELOG.md` (root directory)\n';
-            comment += '- [ ] Update `docs/CONTRIBUTING.md`\n\n';
+            comment += '- [ ] Update `CHANGELOG.md` (root directory)\\n';
+            comment += '- [ ] Update `docs/CONTRIBUTING.md`\\n\\n';
             
-            comment += '---\n';
-            comment += 'You can retry by running the workflow again or update documentation manually.\n';
+            comment += '---\\n';
+            comment += 'You can retry by running the workflow again or update documentation manually.\\n';
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: ${{ steps.pr_number.outputs.pr_number }},
+              issue_number: ${​{ steps.pr_number.outputs.pr_number }},
               body: comment
             });
       
@@ -643,5 +647,5 @@ jobs:
             commits.md
             diff.md
             kilo-prompt.md
-            kilo-output.log
+            bot-output.log
           retention-days: 30

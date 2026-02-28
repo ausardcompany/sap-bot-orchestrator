@@ -264,47 +264,42 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install Kilo CLI
+      - name: Build sap-bot-orchestrator CLI
         if: steps.check-changes.outputs.has_changes == 'true'
         run: |
-          npm install -g @anthropics/claude-code || npm install -g kilo-code || {
-            echo "::warning::Could not install Kilo CLI globally, will use npx"
-          }
+          echo "Installing dependencies..."
+          npm ci
+          echo "Building project..."
+          npm run build
+          echo "[OK] sap-bot-orchestrator CLI built successfully"
+          node dist/cli/program.js --help
 
-      - name: Configure SAP AI Core environment
+      - name: Create analysis prompt file
         if: steps.check-changes.outputs.has_changes == 'true'
         run: |
-          echo "AICORE_SERVICE_KEY=${{ secrets.AICORE_SERVICE_KEY }}" >> $GITHUB_ENV
-          echo "AICORE_RESOURCE_GROUP=${{ secrets.AICORE_RESOURCE_GROUP }}" >> $GITHUB_ENV
-
-      - name: Run Kilo analysis
-        if: steps.check-changes.outputs.has_changes == 'true'
-        id: kilo-analysis
-        env:
-          AICORE_SERVICE_KEY: ${​{ secrets.AICORE_SERVICE_KEY }}
-          AICORE_RESOURCE_GROUP: ${​{ secrets.AICORE_RESOURCE_GROUP }}
-        run: |
-          DIFF_FILE="${{ steps.diff-report.outputs.diff_file }}"
-          
-          # Create the Kilo prompt
-          KILO_PROMPT=$(cat << 'PROMPT_EOF'
+          DIFF_FILE="${​{ steps.diff-report.outputs.diff_file }}"
+          mkdir -p .github/prompts
+          cat > .github/prompts/sync-analysis.md << EOF
           You are analyzing upstream changes from three AI coding assistant repositories to update the sap-bot-orchestrator project:
           - **kilocode** (Kilo-Org/kilocode) - Kilo AI coding assistant
           - **opencode** (anomalyco/opencode) - OpenCode AI terminal assistant
           - **claude-code** (anthropics/claude-code) - Anthropic's Claude Code CLI
 
+          ## Diff Report
+
+          $(cat "$DIFF_FILE")
+
           ## Instructions
 
-          1. Read the diff report from: $DIFF_FILE
-          2. Analyze the changes in all three repositories (kilocode, opencode, claude-code)
-          3. Update corresponding files in sap-bot-orchestrator based on this mapping:
+          1. Analyze the changes shown above in all three repositories
+          2. Update corresponding files in sap-bot-orchestrator based on this mapping:
              - Tool system changes -> src/tool/
              - Agent system changes -> src/agent/
              - Permission system changes -> src/permission/
              - Event bus changes -> src/bus/
              - Core orchestration changes -> src/core/
 
-          4. Important considerations:
+          3. Important considerations:
              - Maintain compatibility with SAP AI Core integration
              - Preserve existing SAP-specific customizations
              - Follow the existing code style and patterns in this repository
@@ -312,29 +307,35 @@ jobs:
              - Do not break existing functionality
              - Prioritize: security fixes > bug fixes > features
 
-          5. After making changes, create a file at .github/reports/changes-summary.md with:
+          4. After making changes, create a file at .github/reports/changes-summary.md with:
              - List of files modified
              - Summary of each change and why it was made
              - Any potential breaking changes or things to test
 
           Please analyze the diff report and make the necessary updates to keep sap-bot-orchestrator in sync with upstream improvements.
-          PROMPT_EOF
-          )
+          EOF
           
-          # Replace placeholder with actual path
-          KILO_PROMPT="${KILO_PROMPT//\$DIFF_FILE/$DIFF_FILE}"
-          
-          # Try different CLI names
-          if command -v kilo &> /dev/null; then
-            echo "$KILO_PROMPT" | kilo --print --dangerously-skip-permissions
-          elif command -v claude &> /dev/null; then
-            echo "$KILO_PROMPT" | claude --print --dangerously-skip-permissions
-          else
-            echo "$KILO_PROMPT" | npx -y kilo-code --print --dangerously-skip-permissions || \
-            echo "$KILO_PROMPT" | npx -y @anthropics/claude-code --print --dangerously-skip-permissions
-          fi
+          echo "[OK] Analysis prompt saved to .github/prompts/sync-analysis.md"
+          echo "Prompt size: $(wc -l < .github/prompts/sync-analysis.md) lines"
 
-      - name: Check for kilo changes
+      - name: Run self-analysis with own CLI
+        if: steps.check-changes.outputs.has_changes == 'true'
+        id: self-analysis
+        env:
+          AICORE_SERVICE_KEY: ${​{ secrets.AICORE_SERVICE_KEY }}
+          AICORE_RESOURCE_GROUP: ${​{ secrets.AICORE_RESOURCE_GROUP }}
+        run: |
+          echo "Running self-analysis with sap-bot-orchestrator CLI..."
+          
+          # Read the prompt from file and use own CLI with auto-routing
+          PROMPT=$(cat .github/prompts/sync-analysis.md)
+          
+          node dist/cli/program.js chat \
+            --message "$PROMPT" \
+            --auto-route \
+            --system "You are an expert software engineer analyzing upstream changes and making code updates. Output only the analysis and changes, no conversational text."
+
+      - name: Check for bot changes
         if: steps.check-changes.outputs.has_changes == 'true'
         id: kilo-changes
         run: |
