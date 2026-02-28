@@ -325,12 +325,17 @@ node dist/cli/program.js explain -m "$(cat very_long_document.txt)"
 
 ## Roadmap
 
-- [ ] Streaming support for long responses
+- [x] Streaming support for long responses
+- [x] Interactive CLI mode (REPL)
+- [x] Function/tool calling support with streaming
+- [x] Content filtering (Azure, Llama Guard)
+- [x] Data masking (DPI)
+- [x] Document grounding
+- [x] Translation support
+- [x] Embeddings support
 - [ ] Cost tracking and budget limits
 - [ ] Token usage analytics
-- [ ] Interactive CLI mode (REPL)
 - [ ] Channel integrations (Telegram, Slack, WebChat)
-- [ ] Function/tool calling support
 - [ ] Caching layer for repeated queries
 - [ ] A/B testing for routing strategies
 - [ ] Performance metrics and logging
