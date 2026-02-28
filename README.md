@@ -238,86 +238,72 @@ npm run dev -- chat -m "test"
 npm run dev:watch
 ```
 
-## Upstream Synchronization
+## Autonomous Self-Updating System
 
-This project maintains synchronization with upstream repositories ([kilocode](https://github.com/Kilo-Org/kilocode) and [opencode](https://github.com/sst/opencode)) to incorporate improvements and stay up-to-date with the latest features.
+This bot **automatically updates itself** by syncing with three upstream AI coding assistant repositories:
 
-### Overview
-
-- **Automated daily sync** via GitHub Action
-- **Manual sync** via local script for on-demand updates
-- **AI-powered analysis** using Kilo AI to identify relevant changes and propose updates
-
-### Automatic Sync (GitHub Action)
-
-The workflow runs automatically on a daily schedule and can also be triggered manually.
-
-**Triggers:**
-- Daily schedule (cron)
-- Manual dispatch via GitHub Actions UI
-
-**What it does:**
-1. Syncs forked repositories with their upstream sources
-2. Generates a diff report of changes since last sync
-3. Uses Kilo AI to analyze changes and identify relevant updates
-4. Creates a Pull Request with proposed changes for review
-
-**Configuration:**
-- Workflow file: [`.github/workflows/sync-upstream.yml`](.github/workflows/sync-upstream.yml)
-- Secrets setup: See [docs/secrets-setup.md](docs/secrets-setup.md) for required GitHub secrets
-
-### Manual Sync (Local Script)
-
-Run the sync process locally for testing or immediate updates.
-
-**Prerequisites:**
-- `git` - Version control
-- `gh` - GitHub CLI (authenticated)
-- `kilo` - Kilo AI CLI
-- `jq` - JSON processor
-
-**Usage:**
-```bash
-# Full sync with changes applied
-./scripts/sync-upstream.sh
-
-# Dry run - only analyze, don't apply changes
-./scripts/sync-upstream.sh --dry-run
-
-# Skip upstream sync, just analyze current state
-./scripts/sync-upstream.sh --skip-sync
-
-# Verbose output for debugging
-./scripts/sync-upstream.sh --verbose
-```
-
-### Configuration
-
-**Environment Variables (Local Script):**
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `UPSTREAM_KILOCODE` | Kilocode upstream repo URL | `https://github.com/Kilo-Org/kilocode` |
-| `UPSTREAM_OPENCODE` | Opencode upstream repo URL | `https://github.com/sst/opencode` |
-| `SYNC_BRANCH` | Branch to sync changes to | `main` |
-
-**GitHub Secrets (Action):**
-| Secret | Description |
-|--------|-------------|
-| `KILO_API_KEY` | API key for Kilo AI analysis |
-| `GH_PAT` | Personal access token for PR creation |
+| Repository | Description | Source |
+|------------|-------------|--------|
+| **kilocode** | Kilo AI coding assistant | [Kilo-Org/kilocode](https://github.com/Kilo-Org/kilocode) |
+| **opencode** | OpenCode AI terminal assistant | [anomalyco/opencode](https://github.com/anomalyco/opencode) |
+| **claude-code** | Anthropic's Claude Code CLI | [anthropics/claude-code](https://github.com/anthropics/claude-code) |
 
 ### How It Works
 
-1. **Sync Forks** - Pull latest changes from upstream repositories (kilocode, opencode)
-2. **Generate Diff Report** - Compare changes since the last sync marker
-3. **AI Analysis** - Kilo AI analyzes the diff to identify:
-   - Relevant features to incorporate
-   - Bug fixes that may apply
-   - Breaking changes to be aware of
-4. **Create PR** - A Pull Request is created with:
-   - Summary of upstream changes
-   - Proposed updates to this project
-   - Review notes from AI analysis
+The bot runs **fully autonomously** via GitHub Actions:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    GitHub Actions (Daily 06:00 UTC)              │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Fetch upstream repos (kilocode, opencode, claude-code)      │
+│  2. Compare with last synced commits                            │
+│  3. Generate diff reports                                       │
+│  4. Kilo AI analyzes changes & updates code                     │
+│  5. Create PR with changes                                      │
+│  6. Auto-merge PR (squash)                                      │
+│  7. Update sync state                                           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Triggers
+
+- **Automatic**: Daily at 06:00 UTC
+- **Manual**: Via GitHub Actions UI with options:
+  - `dry_run` - Only analyze, don't apply changes
+  - `force_sync` - Sync even if no changes detected
+
+### Required GitHub Secrets
+
+| Secret | Description |
+|--------|-------------|
+| `AICORE_SERVICE_KEY` | Full SAP AI Core service key JSON |
+| `AICORE_RESOURCE_GROUP` | SAP AI Core resource group ID |
+| `GH_PAT` | Personal access token for PR creation and merge |
+
+### Workflow Configuration
+
+- **Workflow file**: [`.github/workflows/sync-upstream.yml`](.github/workflows/sync-upstream.yml)
+- **Sync state**: [`.github/last-sync-commits.json`](.github/last-sync-commits.json)
+- **Secrets setup**: See [`SYNC_SECRETS_SETUP.md`](SYNC_SECRETS_SETUP.md)
+
+### Local Testing (Optional)
+
+```bash
+# Dry run - analyze without applying
+./scripts/sync-upstream.sh --dry-run --verbose
+
+# Full sync with auto-apply
+./scripts/sync-upstream.sh --yes
+```
+
+### AI Analysis
+
+Kilo AI analyzes upstream changes and:
+1. Identifies relevant bug fixes and security updates
+2. Extracts useful new features
+3. Adapts code to maintain SAP AI Core compatibility
+4. Creates detailed change summaries
 
 ## Testing
 
