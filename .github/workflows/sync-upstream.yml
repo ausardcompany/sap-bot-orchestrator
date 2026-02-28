@@ -258,22 +258,15 @@ jobs:
       - name: Configure SAP AI Core environment
         if: steps.check-changes.outputs.has_changes == 'true'
         run: |
-          # Export SAP AI Core configuration for Kilo CLI
-          echo "ANTHROPIC_BASE_URL=${{ secrets.SAP_AI_CORE_URL }}" >> $GITHUB_ENV
-          echo "SAP_AI_CORE_CLIENT_ID=${{ secrets.SAP_AI_CORE_CLIENT_ID }}" >> $GITHUB_ENV
-          echo "SAP_AI_CORE_CLIENT_SECRET=${{ secrets.SAP_AI_CORE_CLIENT_SECRET }}" >> $GITHUB_ENV
-          echo "SAP_AI_CORE_TOKEN_URL=${{ secrets.SAP_AI_CORE_TOKEN_URL }}" >> $GITHUB_ENV
-          echo "SAP_AI_CORE_RESOURCE_GROUP=${{ secrets.SAP_AI_CORE_RESOURCE_GROUP }}" >> $GITHUB_ENV
+          echo "AICORE_SERVICE_KEY=${{ secrets.AICORE_SERVICE_KEY }}" >> $GITHUB_ENV
+          echo "AICORE_RESOURCE_GROUP=${{ secrets.AICORE_RESOURCE_GROUP }}" >> $GITHUB_ENV
 
       - name: Run Kilo analysis
         if: steps.check-changes.outputs.has_changes == 'true'
         id: kilo-analysis
         env:
-          ANTHROPIC_BASE_URL: ${{ secrets.SAP_AI_CORE_URL }}
-          SAP_AI_CORE_CLIENT_ID: ${{ secrets.SAP_AI_CORE_CLIENT_ID }}
-          SAP_AI_CORE_CLIENT_SECRET: ${{ secrets.SAP_AI_CORE_CLIENT_SECRET }}
-          SAP_AI_CORE_TOKEN_URL: ${{ secrets.SAP_AI_CORE_TOKEN_URL }}
-          SAP_AI_CORE_RESOURCE_GROUP: ${{ secrets.SAP_AI_CORE_RESOURCE_GROUP }}
+          AICORE_SERVICE_KEY: ${​{ secrets.AICORE_SERVICE_KEY }}
+          AICORE_RESOURCE_GROUP: ${​{ secrets.AICORE_RESOURCE_GROUP }}
         run: |
           DIFF_FILE="${{ steps.diff-report.outputs.diff_file }}"
           

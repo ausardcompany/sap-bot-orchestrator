@@ -29,11 +29,8 @@ Without these secrets properly configured, the workflow will fail during authent
 | Secret Name | Purpose | Required |
 |-------------|---------|----------|
 | `GH_PAT` | GitHub API authentication | Yes |
-| `SAP_AI_CORE_URL` | SAP AI Core API endpoint | Yes |
-| `SAP_AI_CORE_CLIENT_ID` | OAuth client ID | Yes |
-| `SAP_AI_CORE_CLIENT_SECRET` | OAuth client secret | Yes |
-| `SAP_AI_CORE_TOKEN_URL` | OAuth token endpoint | Yes |
-| `SAP_AI_CORE_RESOURCE_GROUP` | AI Core resource group | Yes |
+| `AICORE_SERVICE_KEY` | Full SAP AI Core service key JSON | Yes |
+| `AICORE_RESOURCE_GROUP` | AI Core resource group ID | Yes |
 
 ---
 
@@ -83,54 +80,37 @@ A Personal Access Token (PAT) is required to authenticate with the GitHub API fo
 
 ### SAP AI Core Secrets
 
-These secrets are required to authenticate with SAP AI Core services.
+These secrets are required to authenticate with SAP AI Core services. The simplified structure only requires 2 secrets.
 
-#### SAP_AI_CORE_URL
+#### AICORE_SERVICE_KEY
 
-The base URL for the SAP AI Core API endpoint.
+The full JSON service key from SAP BTP. This contains all the authentication details needed to connect to SAP AI Core.
 
-- **Description**: The API endpoint for your SAP AI Core instance
-- **Format**: `https://api.ai.<environment>.<region>.<cloud>.ml.hana.ondemand.com`
-- **Example**: `https://api.ai.prod.eu-central-1.aws.ml.hana.ondemand.com`
+- **Description**: Complete service key JSON from SAP BTP
+- **Format**: JSON string containing clientid, clientsecret, url, and serviceurls
+- **How to obtain**:
+  1. SAP BTP Cockpit → Subaccount → Services → Instances → AI Core → Service Keys
+  2. Copy the entire JSON content
 
-#### SAP_AI_CORE_CLIENT_ID
+**Example format:**
+```json
+{"clientid":"...","clientsecret":"...","url":"...","serviceurls":{"AI_API_URL":"..."}}
+```
 
-The OAuth 2.0 client ID for authentication.
+#### AICORE_RESOURCE_GROUP
 
-- **Description**: Client ID from your SAP AI Core service key
-- **Format**: UUID or alphanumeric string
-- **Example**: `sb-abc123-def456-ghi789!b12345|aicore!b12345`
-
-#### SAP_AI_CORE_CLIENT_SECRET
-
-The OAuth 2.0 client secret for authentication.
-
-- **Description**: Client secret from your SAP AI Core service key
-- **Format**: Alphanumeric string
-- **Example**: `AbCdEf123456GhIjKlMnOpQrStUvWxYz=`
-
-#### SAP_AI_CORE_TOKEN_URL
-
-The OAuth 2.0 token endpoint URL.
-
-- **Description**: URL used to obtain access tokens
-- **Format**: `https://<subdomain>.authentication.<region>.hana.ondemand.com/oauth/token`
-- **Example**: `https://mysubaccount.authentication.eu10.hana.ondemand.com/oauth/token`
-
-#### SAP_AI_CORE_RESOURCE_GROUP
-
-The resource group within SAP AI Core.
+The resource group ID within SAP AI Core.
 
 - **Description**: Logical grouping for AI Core resources
 - **Format**: String identifier
 - **Default**: `default`
-- **Example**: `default` or `my-resource-group`
+- **Example**: `default` or a custom name like `my-resource-group`
 
 ---
 
-### Getting SAP AI Core Credentials from SAP BTP
+### Getting SAP AI Core Service Key from SAP BTP
 
-Follow these steps to obtain your SAP AI Core credentials:
+Follow these steps to obtain your SAP AI Core service key:
 
 #### Step 1: Access SAP BTP Cockpit
 
@@ -165,7 +145,7 @@ Follow these steps to obtain your SAP AI Core credentials:
 3. Click on the key name to view details
 4. Click **View Credentials** or the eye icon
 
-#### Step 5: Extract Values from Service Key JSON
+#### Step 5: Copy the Entire Service Key JSON
 
 The service key JSON will look similar to this:
 
@@ -186,14 +166,7 @@ The service key JSON will look similar to this:
 }
 ```
 
-**Map the values to secrets:**
-
-| JSON Field | GitHub Secret |
-|------------|---------------|
-| `clientid` | `SAP_AI_CORE_CLIENT_ID` |
-| `clientsecret` | `SAP_AI_CORE_CLIENT_SECRET` |
-| `url` or `serviceurls.AI_API_URL` | `SAP_AI_CORE_URL` |
-| `oauth.url` | `SAP_AI_CORE_TOKEN_URL` |
+**Copy the entire JSON** and use it as the value for `AICORE_SERVICE_KEY`. The application will automatically extract the required fields (clientid, clientsecret, url, etc.) from this JSON.
 
 ---
 
@@ -220,15 +193,12 @@ The service key JSON will look similar to this:
 
 #### Step 4: Repeat for All Secrets
 
-Add all six required secrets:
+Add all three required secrets:
 
 ```
 GH_PAT                      → Your GitHub Personal Access Token
-SAP_AI_CORE_URL             → https://api.ai.prod.eu-central-1.aws.ml.hana.ondemand.com
-SAP_AI_CORE_CLIENT_ID       → sb-abc123...
-SAP_AI_CORE_CLIENT_SECRET   → AbCdEf123...
-SAP_AI_CORE_TOKEN_URL       → https://xxx.authentication.eu10.hana.ondemand.com/oauth/token
-SAP_AI_CORE_RESOURCE_GROUP  → default
+AICORE_SERVICE_KEY          → The entire JSON service key from SAP BTP
+AICORE_RESOURCE_GROUP       → default (or your custom resource group name)
 ```
 
 ### Visual Reference
@@ -236,16 +206,13 @@ SAP_AI_CORE_RESOURCE_GROUP  → default
 Your repository secrets page should show:
 
 ```
-Repository secrets (6)
+Repository secrets (3)
 ┌─────────────────────────────┬─────────────┐
 │ Name                        │ Updated     │
 ├─────────────────────────────┼─────────────┤
 │ GH_PAT                      │ just now    │
-│ SAP_AI_CORE_CLIENT_ID       │ just now    │
-│ SAP_AI_CORE_CLIENT_SECRET   │ just now    │
-│ SAP_AI_CORE_RESOURCE_GROUP  │ just now    │
-│ SAP_AI_CORE_TOKEN_URL       │ just now    │
-│ SAP_AI_CORE_URL             │ just now    │
+│ AICORE_SERVICE_KEY          │ just now    │
+│ AICORE_RESOURCE_GROUP       │ just now    │
 └─────────────────────────────┴─────────────┘
 ```
 
@@ -321,23 +288,11 @@ Repository secrets (6)
 
 | Cause | Solution |
 |-------|----------|
-| Wrong client ID | Verify `SAP_AI_CORE_CLIENT_ID` matches service key |
-| Wrong client secret | Re-copy `SAP_AI_CORE_CLIENT_SECRET` from service key |
-| Wrong token URL | Verify `SAP_AI_CORE_TOKEN_URL` format and region |
+| Invalid service key JSON | Verify `AICORE_SERVICE_KEY` contains valid JSON |
+| Incomplete service key | Ensure the entire JSON was copied from SAP BTP |
 | Service key expired | Create a new service key in SAP BTP |
 
-#### 4. Invalid SAP AI Core URL
-
-**Symptoms:**
-- Error message: `Connection refused` or `DNS resolution failed`
-- Error message: `404 Not Found` on AI Core endpoints
-
-**Solution:**
-1. Verify the URL format: `https://api.ai.<env>.<region>.<cloud>.ml.hana.ondemand.com`
-2. Check your SAP AI Core instance region
-3. Ensure no trailing slash in the URL
-
-#### 5. Resource Group Not Found
+#### 4. Resource Group Not Found
 
 **Symptoms:**
 - Error message: `Resource group not found`
@@ -345,10 +300,10 @@ Repository secrets (6)
 
 **Solution:**
 1. Verify the resource group exists in SAP AI Core
-2. Check spelling of `SAP_AI_CORE_RESOURCE_GROUP`
+2. Check spelling of `AICORE_RESOURCE_GROUP`
 3. Use `default` if unsure
 
-#### 6. Quota Limits Exceeded
+#### 5. Quota Limits Exceeded
 
 **Symptoms:**
 - Error message: `Rate limit exceeded`
@@ -359,10 +314,10 @@ Repository secrets (6)
 2. Check SAP AI Core quota in BTP Cockpit
 3. Request quota increase if needed
 
-#### 7. Secret Not Found
+#### 6. Secret Not Found
 
 **Symptoms:**
-- Error message: `Context access might be invalid: SAP_AI_CORE_URL`
+- Error message: `Context access might be invalid: AICORE_SERVICE_KEY`
 - Workflow fails before any API calls
 
 **Solution:**
@@ -431,7 +386,7 @@ If you suspect a secret has been compromised:
 
 - [ ] GitHub PAT created with `repo` and `workflow` scopes
 - [ ] SAP AI Core service key created in BTP Cockpit
-- [ ] All 6 secrets added to repository
+- [ ] All 3 secrets added to repository
 - [ ] Manual workflow run successful
 - [ ] Token expiration dates documented
 
@@ -441,11 +396,8 @@ If you suspect a secret has been compromised:
 Secret Name                  Value Source
 ─────────────────────────────────────────────────
 GH_PAT                      GitHub → Settings → Developer settings → PAT
-SAP_AI_CORE_URL             Service Key → url
-SAP_AI_CORE_CLIENT_ID       Service Key → clientid
-SAP_AI_CORE_CLIENT_SECRET   Service Key → clientsecret
-SAP_AI_CORE_TOKEN_URL       Service Key → oauth.url
-SAP_AI_CORE_RESOURCE_GROUP  Usually "default"
+AICORE_SERVICE_KEY          Service Key → entire JSON content
+AICORE_RESOURCE_GROUP       Usually "default"
 ```
 
 ---
