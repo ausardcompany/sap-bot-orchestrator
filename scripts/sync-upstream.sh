@@ -667,8 +667,9 @@ main() {
     local last_opencode_commit=""
     
     if [[ "$last_sync_data" != "{}" ]]; then
-        last_kilocode_commit=$(echo "$last_sync_data" | jq -r '.kilocode // empty')
-        last_opencode_commit=$(echo "$last_sync_data" | jq -r '.opencode // empty')
+        # Handle both flat format (kilocode: "commit") and nested format (kilocode: {last_synced_commit: "commit"})
+        last_kilocode_commit=$(echo "$last_sync_data" | jq -r 'if .kilocode | type == "object" then .kilocode.last_synced_commit else .kilocode end // empty')
+        last_opencode_commit=$(echo "$last_sync_data" | jq -r 'if .opencode | type == "object" then .opencode.last_synced_commit else .opencode end // empty')
         log_verbose "Last kilocode commit: ${last_kilocode_commit:-none}"
         log_verbose "Last opencode commit: ${last_opencode_commit:-none}"
     else
