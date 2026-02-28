@@ -29,7 +29,7 @@ permissions:
 jobs:
   # NOTE: This job requires GH_PAT secret to sync forks across repositories.
   # GITHUB_TOKEN cannot perform cross-repo operations.
-  # If GH_PAT is not configured, this job will be skipped gracefully.
+  # If GH_PAT is not configured, this job will skip sync steps gracefully.
   sync-forks:
     name: Sync Fork Repositories
     runs-on: ubuntu-latest
@@ -38,8 +38,11 @@ jobs:
       - name: Sync kilocode fork
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
-        if: ${{ env.GH_TOKEN != '' }}
         run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::GH_PAT not configured, skipping kilocode fork sync"
+            exit 0
+          fi
           echo "Syncing ${{ env.KILOCODE_REPO }} from ${{ env.KILOCODE_UPSTREAM }}..."
           gh repo sync ${{ env.KILOCODE_REPO }} --source ${{ env.KILOCODE_UPSTREAM }} --branch main || {
             echo "::warning::Failed to sync kilocode, it may already be up to date"
@@ -48,17 +51,15 @@ jobs:
       - name: Sync opencode fork
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
-        if: ${{ env.GH_TOKEN != '' }}
         run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::GH_PAT not configured, skipping opencode fork sync"
+            exit 0
+          fi
           echo "Syncing ${{ env.OPENCODE_REPO }} from ${{ env.OPENCODE_UPSTREAM }}..."
           gh repo sync ${{ env.OPENCODE_REPO }} --source ${{ env.OPENCODE_UPSTREAM }} --branch main || {
             echo "::warning::Failed to sync opencode, it may already be up to date"
           }
-
-      - name: Skip notice
-        if: ${{ secrets.GH_PAT == '' }}
-        run: |
-          echo "::notice::GH_PAT secret not configured. Fork sync skipped. Forks can be synced manually via GitHub UI."
 
   analyze-and-update:
     name: Analyze Changes and Update Orchestrator
