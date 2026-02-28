@@ -1,13 +1,13 @@
 {
   "kilocode": {
-    "last_synced_commit": null,
-    "last_synced_at": null,
+    "last_synced_commit": "00e7c24ccc22827dfb8c9b2300679c3edf70c2b7",
+    "last_synced_at": "2026-02-28T08:50:00Z",
     "upstream": "Kilo-Org/kilocode",
     "fork": "ausard/kilocode"
   },
   "opencode": {
-    "last_synced_commit": null,
-    "last_synced_at": null,
+    "last_synced_commit": "5745ee87ba9847e32c07fd364c52a6fad23bb55e",
+    "last_synced_at": "2026-02-28T08:50:00Z",
     "upstream": "anomalyco/opencode",
     "fork": "ausard/opencode"
   },
