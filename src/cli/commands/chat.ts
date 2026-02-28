@@ -2,12 +2,14 @@
  * Chat command - send single message to AI
  */
 
+import { readFileSync } from 'node:fs';
 import type { Command } from 'commander';
 import { sendChat } from '../../core/orchestrator.js';
 import { SessionManager } from '../../core/sessionManager.js';
 
 interface ChatOptions {
-  message: string;
+  message?: string;
+  messageFile?: string;
   model?: string;
   autoRoute?: boolean;
   preferCheap?: boolean;
@@ -18,7 +20,8 @@ interface ChatOptions {
 export function registerChatCommand(program: Command): void {
   program
     .command('chat')
-    .requiredOption('-m, --message <text>', 'Message to send')
+    .option('-m, --message <text>', 'Message to send')
+    .option('-f, --message-file <path>', 'Read message from file')
     .option('--model <id>', 'Model ID override')
     .option('--auto-route', 'Enable automatic model routing based on prompt')
     .option('--prefer-cheap', 'Prefer cheaper models when auto-routing')
@@ -26,6 +29,17 @@ export function registerChatCommand(program: Command): void {
     .option('--system <prompt>', 'System prompt for the conversation')
     .action(async (opts: ChatOptions) => {
       try {
+        // Get message from either --message or --message-file
+        let message: string;
+        if (opts.messageFile) {
+          message = readFileSync(opts.messageFile, 'utf-8');
+        } else if (opts.message) {
+          message = opts.message;
+        } else {
+          console.error('Error: Either --message or --message-file is required');
+          process.exit(1);
+        }
+        
         const sessionManager = new SessionManager();
         
         // Load or create session
@@ -38,7 +52,7 @@ export function registerChatCommand(program: Command): void {
           console.log(`[Continuing session: ${session.metadata.title || opts.session}]`);
         }
         
-        const res = await sendChat(opts.message, {
+        const res = await sendChat(message, {
           modelOverride: opts.model,
           autoRoute: opts.autoRoute,
           preferCheap: opts.preferCheap,

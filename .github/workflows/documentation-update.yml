@@ -473,11 +473,9 @@ jobs:
         run: |
           echo "Running sap-bot-orchestrator CLI with SAP AI Core..."
           
-          # Read prompt from file and run with own CLI
-          PROMPT=$(cat kilo-prompt.md)
-          
+          # Use --message-file to avoid shell escaping issues with complex prompts
           node dist/cli/program.js chat \
-            --message "$PROMPT" \
+            --message-file kilo-prompt.md \
             --auto-route \
             --system "You are an expert technical writer generating documentation. Follow the instructions exactly and update the files directly. Output only the documentation changes." \
             > bot-output.log 2>&1
