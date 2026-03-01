@@ -100,7 +100,7 @@ export function waitForEvent<T>(
   timeoutMs?: number
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    let timer: NodeJS.Timeout | undefined
+    let timer: ReturnType<typeof setTimeout> | undefined
     
     const unsub = event.subscribe((payload) => {
       if (!predicate || predicate(payload)) {

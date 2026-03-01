@@ -81,7 +81,7 @@ function truncateOutput(
   }
 
   // Truncate by lines first
-  let truncatedLines = lines.slice(0, MAX_LINES)
+  const truncatedLines = lines.slice(0, MAX_LINES)
   let result = truncatedLines.join("\n")
 
   // Then check bytes

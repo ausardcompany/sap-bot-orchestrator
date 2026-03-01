@@ -278,7 +278,7 @@ export function connectSoundToEventBus(events: Record<string, EventBusLike>): ()
   const soundManager = getSoundManager();
   const unsubscribers: (() => void)[] = [];
 
-  for (const [key, event] of Object.entries(events)) {
+  for (const [_key, event] of Object.entries(events)) {
     const soundEvent = EVENT_MAP[event.name];
     
     if (soundEvent) {

@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import readline from 'readline';
+
 import type { LogEntry, LogLevel, LogCategory } from './index.js';
 
 // ============ Type Definitions ============
@@ -346,7 +346,7 @@ export class LogViewer {
 
           fileSize = newSize;
         }
-      } catch (error) {
+      } catch {
         // File may have been rotated or deleted
         currentFile = null;
         checkForNewEntries();

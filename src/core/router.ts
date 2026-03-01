@@ -199,7 +199,7 @@ export function routePrompt(
   }
 
   // Score-based routing (fallback or when no rule matches)
-  const { type, complexity, requiresReasoning, estimatedTokens } = classification;
+  const { type, complexity, requiresReasoning, estimatedTokens: _estimatedTokens } = classification;
 
   // Filter available models
   let candidates = getModelRegistry();

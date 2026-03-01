@@ -3,18 +3,13 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import {
-  loadMcpConfig,
-  saveMcpConfig,
-  addMcpServer,
-  removeMcpServer,
-  toggleMcpServer,
   resolveEnvVars,
   type McpConfig,
   type McpServerConfig,
 } from '../src/mcp/config.js';
 
 // Mock the config file path
-const originalHome = os.homedir;
+const _originalHome = os.homedir;
 let mockHomeDir: string;
 
 describe('MCP Config', () => {

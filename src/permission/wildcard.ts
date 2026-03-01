@@ -13,7 +13,7 @@ export interface MatchResult {
  * Convert glob pattern to regex
  */
 function globToRegex(pattern: string): RegExp {
-  let regex = pattern
+  const regex = pattern
     // Escape special regex chars (except * and ?)
     .replace(/[.+^${}()|[\]\\]/g, "\\$&")
     // ** matches any path including /

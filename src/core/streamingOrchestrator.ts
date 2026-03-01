@@ -5,7 +5,7 @@
 
 import { getProviderForModel, getDefaultModel, type StreamChunk } from "../providers/index.js"
 import { routePrompt } from "./router.js"
-import { SessionManager, type Message } from "./sessionManager.js"
+import { SessionManager } from "./sessionManager.js"
 
 export interface StreamingOptions {
   modelOverride?: string;

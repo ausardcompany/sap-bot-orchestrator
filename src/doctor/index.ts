@@ -293,7 +293,7 @@ const sessionsDirCheck: HealthCheck = {
         message: `Sessions directory is writable: ${SESSIONS_DIR} (${files.length} sessions)`,
         duration: Date.now() - start,
       };
-    } catch (error) {
+    } catch {
       return {
         id: this.id,
         name: this.name,

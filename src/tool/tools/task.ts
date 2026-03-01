@@ -4,7 +4,7 @@
 
 import { z } from "zod"
 import { defineTool, type ToolResult } from "../index.js"
-import { getAgentRegistry, type Agent } from "../../agent/index.js"
+import { getAgentRegistry } from "../../agent/index.js"
 
 const TaskParamsSchema = z.object({
   prompt: z.string().describe("The task for the agent to perform"),
@@ -51,7 +51,7 @@ Usage:
 
   parameters: TaskParamsSchema,
 
-  async execute(params, context): Promise<ToolResult<TaskResult>> {
+  async execute(params, _context): Promise<ToolResult<TaskResult>> {
     const { nanoid } = await import("nanoid")
     const registry = getAgentRegistry()
 

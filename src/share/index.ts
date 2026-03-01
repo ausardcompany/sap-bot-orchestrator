@@ -183,7 +183,7 @@ const SECRET_PATTERNS: RegExp[] = [
 const REDACTED_PLACEHOLDER = "[REDACTED]"
 
 /** Placeholder for anonymized user references */
-const ANONYMIZED_USER = "User"
+const _ANONYMIZED_USER = "User"
 
 // ============ Utility Functions ============
 
@@ -220,7 +220,7 @@ export function anonymizeContent(content: string): string {
 
   // Remove file paths that look like user directories
   anonymized = anonymized.replace(
-    /\/(?:Users|home)\/[^\/\s]+/g,
+    /\/(?:Users|home)\/[^/\s]+/g,
     "/[USER_HOME]"
   )
 

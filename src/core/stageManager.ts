@@ -237,7 +237,7 @@ export class StageManager {
    * Set current stage
    */
   setStage(stage: ConversationStage, details?: Partial<StageContext>): StageContext {
-    const definition = STAGE_DEFINITIONS[stage];
+    const _definition = STAGE_DEFINITIONS[stage];
     
     this.currentStage = {
       stage,

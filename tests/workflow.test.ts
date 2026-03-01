@@ -1,11 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import {
   WorkflowManager,
   STAGE_PROMPTS,
-  type WorkflowState,
 } from '../src/core/workflowManager.js';
 import type { ConversationStage } from '../src/core/stageManager.js';
 

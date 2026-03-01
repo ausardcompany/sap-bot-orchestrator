@@ -96,6 +96,7 @@ async function handleCommand(input: string, state: ReplState): Promise<boolean> 
     case 'q':
       console.log(c('gray', '\n  Goodbye!\n'));
       process.exit(0);
+      break; // eslint-disable-line no-fallthrough
 
     case 'model':
       if (args.length === 0) {
@@ -174,7 +175,7 @@ async function handleCommand(input: string, state: ReplState): Promise<boolean> 
       }
       return true;
 
-    case 'sessions':
+    case 'sessions': {
       const sessions = state.sessionManager.listSessions();
       if (sessions.length === 0) {
         console.log(c('yellow', '\n  No saved sessions\n'));
@@ -192,13 +193,14 @@ async function handleCommand(input: string, state: ReplState): Promise<boolean> 
         console.log();
       }
       return true;
+    }
 
     case 'clear':
       console.clear();
       printHeader(state);
       return true;
 
-    case 'history':
+    case 'history': {
       const history = state.sessionManager.getHistory();
       if (history.length === 0) {
         console.log(c('yellow', '\n  No conversation history\n'));
@@ -212,6 +214,7 @@ async function handleCommand(input: string, state: ReplState): Promise<boolean> 
         console.log();
       }
       return true;
+    }
 
     case 'autoroute':
       state.autoRoute = !state.autoRoute;
@@ -231,7 +234,7 @@ async function handleCommand(input: string, state: ReplState): Promise<boolean> 
       }
       return true;
 
-    case 'tokens':
+    case 'tokens': {
       const stats = state.sessionManager.getSessionStats();
       if (stats) {
         console.log(c('cyan', '\n  Token Statistics:\n'));
@@ -243,6 +246,7 @@ async function handleCommand(input: string, state: ReplState): Promise<boolean> 
         console.log(c('yellow', '\n  No statistics available\n'));
       }
       return true;
+    }
 
     default:
       console.log(c('red', `\n  Unknown command: /${cmd}`));

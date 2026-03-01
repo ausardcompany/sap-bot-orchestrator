@@ -11,7 +11,6 @@ import {
   registerSkill,
   getSkill,
   listSkills,
-  type Skill,
 } from '../src/skill/index.js';
 
 describe('Skill System', () => {

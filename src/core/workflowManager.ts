@@ -7,9 +7,9 @@
 import fs from 'fs';
 import path from 'path';
 import { ConversationStage, STAGE_DEFINITIONS, getStageManager } from './stageManager.js';
-import { AINotesGenerator, AINotesBuilder } from './aiNotes.js';
+import { AINotesGenerator } from './aiNotes.js';
 import { DoDChecker, DoDReport } from './dodChecker.js';
-import { getProjectContextManager, ProjectContext } from '../config/projectContext.js';
+import { getProjectContextManager } from '../config/projectContext.js';
 
 export interface WorkflowState {
   currentStage: ConversationStage;

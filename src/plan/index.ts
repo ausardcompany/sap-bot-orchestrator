@@ -5,7 +5,7 @@
  */
 
 import { z } from "zod"
-import { defineEvent, type BusEvent } from "../bus/index.js"
+import { defineEvent } from "../bus/index.js"
 
 // ============ Types ============
 

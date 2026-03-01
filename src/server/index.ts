@@ -12,7 +12,7 @@ import { nanoid } from "nanoid"
 import { z } from "zod"
 import { streamChat, type StreamingOptions } from "../core/streamingOrchestrator.js"
 import { SessionManager } from "../core/sessionManager.js"
-import { getToolRegistry, type ToolContext, type ToolResult } from "../tool/index.js"
+import { getToolRegistry, type ToolContext } from "../tool/index.js"
 import { registerBuiltInTools } from "../tool/tools/index.js"
 import { getAgentRegistry, switchAgent, parseAgentMention } from "../agent/index.js"
 import {
@@ -157,7 +157,7 @@ export function createApp() {
 
   // Create new session
   app.post("/sessions", (c) => {
-    const { id, manager } = getOrCreateSession()
+    const { id, manager: _manager } = getOrCreateSession()
     return c.json({
       id,
       createdAt: Date.now(),
@@ -252,7 +252,7 @@ export function createApp() {
           temperature: request.temperature,
         }
         
-        let result: { text: string; usage?: any; modelUsed: string } = {
+        const result: { text: string; usage?: any; modelUsed: string } = {
           text: "",
           modelUsed: request.model || "default",
         }
@@ -433,5 +433,6 @@ export function getServerStatus(): {
   }
 }
 
-// Export for direct usage
-export { type ChatRequestSchema, type ToolExecuteRequestSchema }
+// Export types for direct usage
+export type ChatRequest = z.infer<typeof ChatRequestSchema>
+export type ToolExecuteRequest = z.infer<typeof ToolExecuteRequestSchema>

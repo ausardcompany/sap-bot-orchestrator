@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -376,13 +376,13 @@ describe('ProfileManager', () => {
   let tempDir: string;
   let originalEnv: NodeJS.ProcessEnv;
   let resetProfileManager: () => void;
-  let getProfileManager: () => import('../src/profile/index.js').ProfileManager;
+  let _getProfileManager: () => import('../src/profile/index.js').ProfileManager;
   let ProfileManager: typeof import('../src/profile/index.js').ProfileManager;
 
   beforeEach(async () => {
     const profileModule = await import('../src/profile/index.js');
     resetProfileManager = profileModule.resetProfileManager;
-    getProfileManager = profileModule.getProfileManager;
+    _getProfileManager = profileModule.getProfileManager;
     ProfileManager = profileModule.ProfileManager;
     
     // Save original env
@@ -766,13 +766,13 @@ describe('CIManager', () => {
   let tempDir: string;
   let resetCIManager: () => void;
   let getCIManager: () => import('../src/ci/index.js').CIManager;
-  let CIManager: typeof import('../src/ci/index.js').CIManager;
+  let _CIManager: typeof import('../src/ci/index.js').CIManager;
 
   beforeEach(async () => {
     const ciModule = await import('../src/ci/index.js');
     resetCIManager = ciModule.resetCIManager;
     getCIManager = ciModule.getCIManager;
-    CIManager = ciModule.CIManager;
+    _CIManager = ciModule.CIManager;
     
     resetCIManager();
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-test-'));

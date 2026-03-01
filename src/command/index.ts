@@ -141,13 +141,13 @@ async function processTemplate(
         // Leave a note that file was not found
         result = result.replace(fullMatch, `[File not found: ${filePath}]`);
       }
-    } catch (error) {
+    } catch {
       result = result.replace(fullMatch, `[Error reading file: ${filePath}]`);
     }
   }
 
   // Process shell injection !`command`
-  const shellPattern = /!\`([^`]+)\`/g;
+  const shellPattern = /!`([^`]+)`/g;
   const shellMatches = [...result.matchAll(shellPattern)];
   
   for (const match of shellMatches) {

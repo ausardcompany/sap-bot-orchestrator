@@ -165,9 +165,9 @@ export class DoDChecker {
     const results: Array<{ check: string; result: DoDResult }> = [];
     let passed = 0;
     let failed = 0;
-    let warnings = 0;
+    const warnings = 0;
 
-    for (const [id, check] of this.checks) {
+    for (const [_id, check] of this.checks) {
       if (check.stage !== stage && check.stage !== 'all') continue;
 
       try {

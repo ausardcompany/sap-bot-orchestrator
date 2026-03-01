@@ -1,6 +1,6 @@
 import { getProviderForModel, getDefaultModel } from "../providers/index.js"
 import { routePrompt } from "./router.js"
-import { SessionManager, type Message } from "./sessionManager.js"
+import { SessionManager } from "./sessionManager.js"
 
 export async function sendChat(
   message: string, 
