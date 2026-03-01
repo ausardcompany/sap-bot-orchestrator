@@ -1,7 +1,7 @@
 name: On Release Merge
 
 on:
-  pull_request:
+  pull_request_target:
     types: [closed]
     branches: [master]
 
@@ -17,6 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: master
           fetch-depth: 0
           token: ${​{ secrets.HOMEBREW_TAP_TOKEN }}
 
