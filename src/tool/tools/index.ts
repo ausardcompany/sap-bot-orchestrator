@@ -15,6 +15,14 @@ import { webfetchTool } from './webfetch.js';
 import { taskTool } from './task.js';
 import { questionTool } from './question.js';
 import { todowriteTool } from './todowrite.js';
+import { deleteTool } from './delete.js';
+import { multieditTool } from './multiedit.js';
+import { lsTool } from './ls.js';
+import { websearchTool } from './websearch.js';
+import { skillTool } from './skill.js';
+import { definitionsTool } from './definitions.js';
+import { notebookReadTool, notebookEditTool } from './notebook.js';
+import { browserTool } from './browser.js';
 
 // All built-in tools
 export const builtInTools = [
@@ -25,9 +33,18 @@ export const builtInTools = [
   globTool,
   grepTool,
   webfetchTool,
+  websearchTool,
   taskTool,
   questionTool,
   todowriteTool,
+  deleteTool,
+  multieditTool,
+  lsTool,
+  skillTool,
+  definitionsTool,
+  notebookReadTool,
+  notebookEditTool,
+  browserTool,
 ] as const;
 
 /**
@@ -49,9 +66,18 @@ export {
   globTool,
   grepTool,
   webfetchTool,
+  websearchTool,
   taskTool,
   questionTool,
   todowriteTool,
+  deleteTool,
+  multieditTool,
+  lsTool,
+  skillTool,
+  definitionsTool,
+  notebookReadTool,
+  notebookEditTool,
+  browserTool,
 };
 
 // Re-export UI utilities from specific tools
