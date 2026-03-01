@@ -67,7 +67,7 @@ export const OUR_FEATURES = {
     'skill',
     'question',
   ],
-  providers: ['sap-ai-core', 'anthropic', 'openai'],
+  providers: ['sap-ai-core'],
   commands: [
     '/help',
     '/clear',
