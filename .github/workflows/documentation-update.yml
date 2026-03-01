@@ -466,18 +466,47 @@ jobs:
       - name: Run documentation generation with own CLI
         if: steps.check_needed.outputs.skip != 'true'
         env:
-          AICORE_RESOURCE_GROUP: ${{ secrets.AICORE_RESOURCE_GROUP }}
-          AICORE_SERVICE_KEY: ${{ secrets.AICORE_SERVICE_KEY }}
+          AICORE_RESOURCE_GROUP: ${​{ secrets.AICORE_RESOURCE_GROUP }}
+          AICORE_SERVICE_KEY: ${​{ secrets.AICORE_SERVICE_KEY }}
         id: bot
         continue-on-error: true
         run: |
-          echo "Running Alexi CLI with SAP AI Core..."
+          echo "Running Alexi CLI with SAP AI Core (agentic mode)..."
           
-          # Use --message-file to avoid shell escaping issues with complex prompts
-          node dist/cli/program.js chat \
+          # Create system prompt file for agentic documentation generation
+          cat > system-prompt.txt << 'SYSTEMPROMPT'
+          You are an expert technical writer generating documentation for the Alexi project.
+          
+          Your task is to UPDATE documentation files based on the code changes provided.
+          
+          CRITICAL INSTRUCTIONS:
+          1. Use the 'read' tool to examine existing documentation files before updating them
+          2. Use the 'write' tool to create new documentation files or fully replace existing ones
+          3. Use the 'edit' tool to make targeted changes to existing documentation files
+          4. Use 'glob' and 'grep' to find relevant code to document
+          
+          DOCUMENTATION REQUIREMENTS:
+          - Include at least 3 Mermaid diagrams per major document
+          - Follow the existing documentation style in the project
+          - Be accurate and reflect actual code behavior
+          - Update CHANGELOG.md with the changes in this PR
+          
+          After updating all required files, provide a brief summary of what was changed.
+          SYSTEMPROMPT
+          
+          # Read system prompt from file to avoid escaping issues
+          SYSTEM_PROMPT=$(cat system-prompt.txt)
+          
+          # Use 'agent' command which enables tool execution loop
+          # This allows the LLM to write/edit files directly
+          node dist/cli/program.js agent \
             --message-file kilo-prompt.md \
             --auto-route \
-            --system "You are an expert technical writer generating documentation. Follow the instructions exactly and update the files directly. Output only the documentation changes." \
+            --max-iterations 30 \
+            --tools "read,write,edit,glob,grep" \
+            --workdir "$(pwd)" \
+            --verbose \
+            --system "$SYSTEM_PROMPT" \
             > bot-output.log 2>&1
           
           BOT_EXIT_CODE=$?
