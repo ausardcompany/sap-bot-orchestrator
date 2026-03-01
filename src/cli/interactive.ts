@@ -8,6 +8,10 @@ import { streamChat, resolveModelId, isAbortError } from '../core/streamingOrche
 import { SessionManager } from '../core/sessionManager.js';
 import { env } from '../config/env.js';
 import { colors, c } from './utils/colors.js';
+import { getCheckpointManager } from '../core/checkpoints.js';
+import { compactConversation, estimateTokens } from '../core/compaction.js';
+import { DoDChecker } from '../core/dodChecker.js';
+import { getStageManager, type ConversationStage } from '../core/stageManager.js';
 
 export interface InteractiveOptions {
   model?: string;
@@ -25,6 +29,8 @@ interface ReplState {
   systemPrompt?: string;
   abortController?: AbortController;
   isStreaming: boolean;
+  agent?: string;
+  stage?: ConversationStage;
 }
 
 // Spinner animation frames
@@ -78,6 +84,40 @@ function printHelp(): void {
   console.log(c('yellow', '  /autoroute') + c('gray', '         - Toggle auto model routing'));
   console.log(c('yellow', '  /system <prompt>') + c('gray', '   - Set system prompt'));
   console.log(c('yellow', '  /tokens') + c('gray', '            - Show token usage stats'));
+  console.log();
+  console.log(c('cyan', '  Context & Session:'));
+  console.log();
+  console.log(
+    c('yellow', '  /compact') + c('gray', '           - Trigger manual context compaction')
+  );
+  console.log(
+    c('yellow', '  /context') + c('gray', '           - Show context usage (tokens used/available)')
+  );
+  console.log(
+    c('yellow', '  /status') +
+      c('gray', '            - Show current status (model, agent, session, stage)')
+  );
+  console.log(
+    c('yellow', '  /diff') + c('gray', '              - Show files changed in current session')
+  );
+  console.log(c('yellow', '  /undo') + c('gray', '              - Undo last file change'));
+  console.log(c('yellow', '  /redo') + c('gray', '              - Redo last undone change'));
+  console.log(
+    c('yellow', '  /fork [name]') + c('gray', '       - Fork current session with optional name')
+  );
+  console.log(c('yellow', '  /rename <name>') + c('gray', '     - Rename current session'));
+  console.log();
+  console.log(c('cyan', '  Agents & Stages:'));
+  console.log();
+  console.log(
+    c('yellow', '  /agent <name>') +
+      c('gray', '      - Switch to different agent (code, debug, plan)')
+  );
+  console.log(c('yellow', '  /stage <name>') + c('gray', '      - Switch development stage'));
+  console.log(
+    c('yellow', '  /dod') +
+      c('gray', '               - Run Definition of Done checks for current stage')
+  );
   console.log();
 }
 
@@ -251,6 +291,220 @@ async function handleCommand(input: string, state: ReplState): Promise<boolean> 
       } else {
         console.log(c('yellow', '\n  No statistics available\n'));
       }
+      return true;
+    }
+
+    case 'compact': {
+      const history = state.sessionManager.getHistory();
+      if (history.length === 0) {
+        console.log(c('yellow', '\n  No conversation to compact\n'));
+        return true;
+      }
+      console.log(c('cyan', '\n  Compacting conversation...'));
+      try {
+        const { result } = await compactConversation(history);
+        if (result.estimatedTokensSaved > 0) {
+          console.log(c('green', `  Compacted: saved ~${result.estimatedTokensSaved} tokens`));
+          console.log(
+            c(
+              'gray',
+              `  Messages reduced from ${result.originalMessages} to ${result.compactedMessages}`
+            )
+          );
+        } else {
+          console.log(c('yellow', '  No compaction needed'));
+        }
+      } catch (err) {
+        console.log(c('red', `  Compaction failed: ${err}`));
+      }
+      console.log();
+      return true;
+    }
+
+    case 'context': {
+      const history = state.sessionManager.getHistory();
+      const content = history.map((m) => m.content).join('');
+      const totalTokens = estimateTokens(content);
+      const maxTokens = 128000; // Default context window
+      const percent = ((totalTokens / maxTokens) * 100).toFixed(1);
+      console.log(c('cyan', '\n  Context Usage:\n'));
+      console.log(
+        c(
+          'gray',
+          `    Tokens: ${totalTokens.toLocaleString()} / ${maxTokens.toLocaleString()} (${percent}%)`
+        )
+      );
+      console.log(c('gray', `    Messages: ${history.length}`));
+      if (parseFloat(percent) > 75) {
+        console.log(c('yellow', '    Warning: Consider running /compact to free up context'));
+      }
+      console.log();
+      return true;
+    }
+
+    case 'status': {
+      const session = state.sessionManager.getCurrentSession();
+      const stageManager = getStageManager();
+      const currentStage = stageManager.getCurrentStage();
+      console.log(c('cyan', '\n  Current Status:\n'));
+      console.log(c('gray', `    Model: ${c('green', state.currentModel)}`));
+      console.log(c('gray', `    Agent: ${c('yellow', state.agent || 'code')}`));
+      console.log(
+        c('gray', `    Session: ${c('yellow', session?.metadata.id.slice(0, 8) || 'none')}`)
+      );
+      console.log(
+        c(
+          'gray',
+          `    Stage: ${c('yellow', currentStage?.stage || state.stage || 'implementation')}`
+        )
+      );
+      console.log(
+        c('gray', `    Auto-route: ${state.autoRoute ? c('green', 'on') : c('red', 'off')}`)
+      );
+      console.log();
+      return true;
+    }
+
+    case 'diff': {
+      const checkpointMgr = getCheckpointManager();
+      const history = checkpointMgr.getHistory();
+      if (history.length === 0) {
+        console.log(c('yellow', '\n  No file changes in current session\n'));
+        return true;
+      }
+      const uniqueFiles = Array.from(new Set(history.map((h) => h.filePath)));
+      console.log(c('cyan', '\n  Files Changed:\n'));
+      for (const filePath of uniqueFiles) {
+        const fileChanges = history.filter((h) => h.filePath === filePath);
+        console.log(c('gray', `    ${filePath} (${fileChanges.length} change(s))`));
+      }
+      console.log();
+      return true;
+    }
+
+    case 'undo': {
+      const checkpointMgr = getCheckpointManager();
+      const undoResult = await checkpointMgr.undo();
+      if (undoResult.success) {
+        console.log(c('green', `\n  Undone changes to: ${undoResult.filePath}\n`));
+      } else {
+        console.log(c('yellow', `\n  ${undoResult.error || 'Nothing to undo'}\n`));
+      }
+      return true;
+    }
+
+    case 'redo': {
+      const checkpointMgr = getCheckpointManager();
+      const redoResult = await checkpointMgr.redo();
+      if (redoResult.success) {
+        console.log(c('green', `\n  Redone changes to: ${redoResult.filePath}\n`));
+      } else {
+        console.log(c('yellow', `\n  ${redoResult.error || 'Nothing to redo'}\n`));
+      }
+      return true;
+    }
+
+    case 'fork': {
+      const session = state.sessionManager.getCurrentSession();
+      if (!session) {
+        console.log(c('yellow', '\n  No active session to fork\n'));
+        return true;
+      }
+      const forkName = args[0] || `fork-${Date.now()}`;
+      // Create a new session with the same history
+      state.sessionManager.createSession(state.currentModel);
+      const newSession = state.sessionManager.getCurrentSession();
+      if (newSession) {
+        newSession.metadata.title = forkName;
+        console.log(
+          c('green', `\n  Forked session: ${forkName} (${newSession.metadata.id.slice(0, 8)})\n`)
+        );
+      }
+      return true;
+    }
+
+    case 'rename': {
+      if (args.length === 0) {
+        console.log(c('red', '\n  Usage: /rename <name>\n'));
+        return true;
+      }
+      const session = state.sessionManager.getCurrentSession();
+      if (!session) {
+        console.log(c('yellow', '\n  No active session to rename\n'));
+        return true;
+      }
+      const newName = args.join(' ');
+      session.metadata.title = newName;
+      console.log(c('green', `\n  Session renamed to: ${newName}\n`));
+      return true;
+    }
+
+    case 'agent': {
+      const availableAgents = ['code', 'debug', 'plan', 'explore', 'orchestrator'];
+      if (args.length === 0) {
+        console.log(c('cyan', '\n  Available Agents:\n'));
+        for (const agent of availableAgents) {
+          const marker = agent === (state.agent || 'code') ? c('green', ' <- current') : '';
+          console.log(c('gray', `    @${agent}${marker}`));
+        }
+        console.log();
+      } else {
+        const requestedAgent = args[0].replace('@', '');
+        if (availableAgents.includes(requestedAgent)) {
+          state.agent = requestedAgent;
+          console.log(c('green', `\n  Switched to agent: @${requestedAgent}\n`));
+        } else {
+          console.log(c('red', `\n  Unknown agent: ${args[0]}`));
+          console.log(c('gray', `  Available: ${availableAgents.join(', ')}\n`));
+        }
+      }
+      return true;
+    }
+
+    case 'stage': {
+      const stageManager = getStageManager();
+      const stages = stageManager.listStages();
+      if (args.length === 0) {
+        const currentStage = stageManager.getCurrentStage();
+        console.log(c('cyan', '\n  Available Stages:\n'));
+        for (const stage of stages) {
+          const marker = stage.type === currentStage?.stage ? c('green', ' <- current') : '';
+          console.log(c('gray', `    ${stage.type}: ${stage.name}${marker}`));
+        }
+        console.log();
+      } else {
+        const requestedStage = args[0] as ConversationStage;
+        const validStages = stages.map((s) => s.type);
+        if (validStages.includes(requestedStage)) {
+          stageManager.setStage(requestedStage);
+          state.stage = requestedStage;
+          const stageDef = stageManager.getStageDefinition(requestedStage);
+          console.log(c('green', `\n  Switched to stage: ${stageDef.name}\n`));
+          console.log(c('dim', `  ${stageDef.description}\n`));
+        } else {
+          console.log(c('red', `\n  Unknown stage: ${args[0]}`));
+          console.log(c('gray', `  Available: ${validStages.join(', ')}\n`));
+        }
+      }
+      return true;
+    }
+
+    case 'dod': {
+      const stageManager = getStageManager();
+      const currentStage = stageManager.getCurrentStage()?.stage || state.stage || 'implementation';
+      const dodChecker = new DoDChecker();
+      console.log(c('cyan', `\n  Running DoD checks for stage: ${currentStage}\n`));
+      const report = dodChecker.runChecks(currentStage);
+      for (const { check, result } of report.results) {
+        const status = result.passed ? c('green', '  ✓') : c('red', '  ✗');
+        console.log(`${status} ${check}`);
+        if (!result.passed && result.suggestion) {
+          console.log(c('dim', `      ${result.suggestion}`));
+        }
+      }
+      console.log();
+      console.log(c('gray', `  Summary: ${report.passed}/${report.totalChecks} passed`));
+      console.log();
       return true;
     }
 
