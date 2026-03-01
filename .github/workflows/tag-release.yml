@@ -1,0 +1,198 @@
+name: Tag Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to tag (e.g., 0.2.0)'
+        required: true
+        type: string
+      bump_type:
+        description: 'Version bump type (if version not specified)'
+        required: false
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Calculate version
+        id: version
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT_VERSION"
+          
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            NEW_VERSION="${{ github.event.inputs.version }}"
+          else
+            # Parse current version
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+            
+            case "${{ github.event.inputs.bump_type }}" in
+              major)
+                NEW_VERSION="$((MAJOR + 1)).0.0"
+                ;;
+              minor)
+                NEW_VERSION="${MAJOR}.$((MINOR + 1)).0"
+                ;;
+              patch)
+                NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+                ;;
+            esac
+          fi
+          
+          echo "New version: $NEW_VERSION"
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update package.json version
+        run: |
+          npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
+          git push
+
+      - name: Create and push tag
+        run: |
+          git tag -a ${{ steps.version.outputs.tag }} -m "Release ${{ steps.version.outputs.tag }}"
+          git push origin ${{ steps.version.outputs.tag }}
+
+      - name: Summary
+        run: |
+          echo "## Release Tagged Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The release workflow will now be triggered automatically." >> $GITHUB_STEP_SUMMARY
+
+  update-homebrew:
+    needs: tag
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: ausardcompany/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Get commit SHA
+        id: sha
+        run: |
+          SHA=$(gh api repos/ausardcompany/sap-bot-orchestrator/git/refs/tags/${{ needs.tag.outputs.tag }} --jq '.object.sha')
+          # If it's an annotated tag, get the actual commit
+          TYPE=$(gh api repos/ausardcompany/sap-bot-orchestrator/git/tags/$SHA --jq '.object.type' 2>/dev/null || echo "commit")
+          if [ "$TYPE" = "commit" ]; then
+            COMMIT_SHA=$(gh api repos/ausardcompany/sap-bot-orchestrator/git/tags/$SHA --jq '.object.sha' 2>/dev/null || echo "$SHA")
+          else
+            COMMIT_SHA=$SHA
+          fi
+          echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Formula
+        run: |
+          cd homebrew-tap
+          cat > Formula/alexi.rb << EOF
+          class Alexi < Formula
+            desc "Intelligent LLM orchestrator with SAP AI Core provider support"
+            homepage "https://github.com/ausardcompany/sap-bot-orchestrator"
+            url "https://github.com/ausardcompany/sap-bot-orchestrator.git",
+                tag:      "${{ needs.tag.outputs.tag }}",
+                revision: "${{ steps.sha.outputs.sha }}"
+            license "ISC"
+            head "https://github.com/ausardcompany/sap-bot-orchestrator.git", branch: "master"
+
+            depends_on "node@22"
+
+            def install
+              # Install npm dependencies
+              system "npm", "install", *std_npm_args(prefix: false)
+              # Build TypeScript
+              system "npm", "run", "build"
+
+              # Install to libexec
+              libexec.install Dir["*"]
+
+              # Create wrapper scripts
+              (bin/"alexi").write <<~EOS
+                #!/bin/bash
+                exec "#{Formula["node@22"].opt_bin}/node" "#{libexec}/dist/cli/program.js" "\$@"
+              EOS
+
+              (bin/"ax").write <<~EOS
+                #!/bin/bash
+                exec "#{Formula["node@22"].opt_bin}/node" "#{libexec}/dist/cli/program.js" "\$@"
+              EOS
+            end
+
+            def caveats
+              <<~EOS
+                Alexi requires SAP AI Core credentials.
+                Set the following environment variables:
+                  - AICORE_SERVICE_KEY (JSON service key) or individual credentials:
+                  - AICORE_CLIENT_ID
+                  - AICORE_CLIENT_SECRET
+                  - AICORE_AUTH_URL
+                  - AICORE_BASE_URL
+                  - AICORE_RESOURCE_GROUP
+              EOS
+            end
+
+            test do
+              assert_match "alexi", shell_output("#{bin}/alexi --version")
+            end
+          end
+          EOF
+
+      - name: Commit and push
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/alexi.rb
+          # Remove old formula if exists
+          git rm -f Formula/sap-bot-orchestrator.rb 2>/dev/null || true
+          git commit -m "alexi ${{ needs.tag.outputs.version }}" || echo "No changes to commit"
+          git push
