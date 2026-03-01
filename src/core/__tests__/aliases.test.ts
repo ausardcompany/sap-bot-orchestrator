@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { AliasManager, getAliasManager, resetAliasManager, DEFAULT_ALIASES } from '../aliases.js';
+import { AliasManager, getAliasManager, resetAliasManager } from '../aliases.js';
 
 describe('AliasManager', () => {
   let testDir: string;

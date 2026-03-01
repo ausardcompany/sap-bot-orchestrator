@@ -6,8 +6,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { SessionManager, type Session, type Message } from './sessionManager.js';
-import { getCostTracker, type UsageRecord, type CostSummary } from './costTracker.js';
+import { type Session } from './sessionManager.js';
+import { getCostTracker, type UsageRecord } from './costTracker.js';
 import { getMemoryManager, type MemoryEntry } from './memory.js';
 
 // ============ Type Definitions ============

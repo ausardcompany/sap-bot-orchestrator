@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import {
@@ -7,8 +6,6 @@ import {
   getCostTracker,
   resetCostTracker,
   MODEL_PRICING,
-  type UsageRecord,
-  type CostSummary,
 } from '../costTracker.js';
 
 // Mock fs module for testing
@@ -175,7 +172,6 @@ describe('CostTracker', () => {
 
       const now = Date.now();
       const oneDayAgo = now - 24 * 60 * 60 * 1000;
-      const twoDaysAgo = now - 2 * 24 * 60 * 60 * 1000;
 
       // Get summary since one day ago (should include our record)
       const recentSummary = tracker.getSummary({ since: oneDayAgo });

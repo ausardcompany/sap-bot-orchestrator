@@ -7,8 +7,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { StatsManager, getStatsManager, resetStatsManager } from '../stats.js';
-import { resetCostTracker, getCostTracker } from '../costTracker.js';
-import { resetMemoryManager, getMemoryManager } from '../memory.js';
+import { resetCostTracker } from '../costTracker.js';
+import { resetMemoryManager } from '../memory.js';
 
 describe('StatsManager', () => {
   let testDir: string;

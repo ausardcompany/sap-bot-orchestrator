@@ -1,12 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import {
   MemoryManager,
   getMemoryManager,
   resetMemoryManager,
-  type MemoryEntry,
 } from '../memory.js';
 
 // Mock fs module for testing

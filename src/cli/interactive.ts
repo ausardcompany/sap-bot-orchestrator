@@ -15,7 +15,7 @@ import { getCheckpointManager } from '../core/checkpoints.js';
 import { compactConversation, estimateTokens } from '../core/compaction.js';
 import { DoDChecker } from '../core/dodChecker.js';
 import { getStageManager, type ConversationStage } from '../core/stageManager.js';
-import { getPermissionManager, defaultRules } from '../permission/index.js';
+import { getPermissionManager } from '../permission/index.js';
 import { getMcpClientManager, loadMcpConfig, type McpServerConfig } from '../mcp/index.js';
 import { getDoctor } from '../doctor/index.js';
 import { getCostTracker } from '../core/costTracker.js';

@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { TemplateManager, getTemplateManager, resetTemplateManager, DEFAULT_TEMPLATES } from '../templates.js';
+import { TemplateManager, getTemplateManager, resetTemplateManager } from '../templates.js';
 
 describe('TemplateManager', () => {
   let testDir: string;

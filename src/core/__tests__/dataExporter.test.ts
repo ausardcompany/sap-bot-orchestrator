@@ -7,8 +7,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { DataExporter, getDataExporter, resetDataExporter, type ExportedData } from '../dataExporter.js';
-import { resetCostTracker, getCostTracker } from '../costTracker.js';
-import { resetMemoryManager, getMemoryManager } from '../memory.js';
+import { resetCostTracker } from '../costTracker.js';
+import { resetMemoryManager } from '../memory.js';
 
 describe('DataExporter', () => {
   let testDir: string;
