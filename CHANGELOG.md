@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Centralized logger utility (`src/utils/logger.ts`) for consistent, configurable logging across the application. All modules now use this logger for debug/info/warn/error/print output.
 
 - Comprehensive unit tests for file operation tools
   - Added tests for read tool (20+ test cases covering file/directory reading, offsets, limits)
@@ -38,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Includes testing best practices and CI/CD pipeline details
 
 ### Changed
+- Improved type assertions and type safety in core router and tool modules (TypeScript best practices).
+- Enhanced Zod to JSON Schema conversion in tool system for better parameter introspection and schema generation.
 
 - Enhanced tool system with context-aware path resolution
   - Tool permission system now receives ToolContext in getResource function
@@ -56,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated env.ts to export env function with proper return type handling
 
 ### Fixed
+- Addressed incorrect type handling and improved type guards in event bus and router modules.
 
 - Resolved relative path handling in write/edit tools for CI permission checks
 - Fixed zero-width space characters in GitHub workflow expressions

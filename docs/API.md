@@ -675,52 +675,68 @@ try {
 
 Alexi supports streaming responses for real-time output. See the streaming orchestrator documentation for details on implementing streaming in custom integrations.
 
-## Logging Utility
+## Centralized Logging Utility
 
-Alexi provides a centralized logging utility for consistent logging across the application.
+Alexi provides a centralized logger utility (`src/utils/logger.ts`) for consistent and configurable logging across the application. All logs pass through this system, ensuring uniform output and easy debugging.
 
 ### Logger Interface
 
 ```typescript
-interface Logger {
+export interface Logger {
   setLevel(level: LogLevel): void;
   debug(message: string, ...args: unknown[]): void;
   info(message: string, ...args: unknown[]): void;
   warn(message: string, ...args: unknown[]): void;
   error(message: string, ...args: unknown[]): void;
-  print(message: string): void;
+  print(message: string): void; // Always prints, regardless of log level
 }
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 ```
 
-### Usage
+### Usage Example
 
 ```typescript
 import { logger } from './utils/index.js';
 
-// Set log level
+// Set the global log level (default is 'info')
 logger.setLevel('debug');
 
-// Log messages
+// Log messages at different levels
 logger.debug('Debugging information', { context: 'value' });
 logger.info('Operation completed successfully');
 logger.warn('Potential issue detected');
 logger.error('Operation failed', error);
 
-// Print raw output (for CLI)
+// Print raw output (for CLI, always shown)
 logger.print('Output without formatting');
 ```
 
-### Log Level Behavior
+### Log Level Filtering
 
-The logger filters messages based on the configured level:
+The logger outputs messages at or above the current log level:
 
-| Current Level | Messages Shown |
-|---------------|----------------|
-| `debug` | debug, info, warn, error |
-| `info` (default) | info, warn, error |
-| `warn` | warn, error |
-| `error` | error only |
+| Level Set   | Messages Shown                   |
+|-------------|----------------------------------|
+| `debug`     | debug, info, warn, error         |
+| `info`      | info, warn, error                |
+| `warn`      | warn, error                      |
+| `error`     | error only                       |
 
-The `print` method always outputs regardless of log level and is intended for CLI output that should not be filtered.
+The `print()` method always outputs, intended for CLI and user-facing results.
+
+### Example Log Output
+
+```text
+[INFO] Operation completed successfully
+[DEBUG] Debugging information { context: 'value' }
+[WARN] Potential issue detected
+[ERROR] Operation failed Error: Some error
+Some output without formatting
+```
+
+### Implementation Notes
+- Log level is set globally and can be changed at runtime.
+- Used for both internal debugging and CLI output control.
+- All major modules (routing, tools, orchestration) use this logger for structured output.
+- For source, see `src/utils/logger.ts`.

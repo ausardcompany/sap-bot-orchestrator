@@ -140,7 +140,9 @@ graph LR
 
 ### TypeScript Guidelines
 
-1. **Type Safety**: Always use explicit types, avoid `any`
+#### Updated for v0.1.4: Centralized logger, improved type safety, Zod schema introspection
+
+1. **Type Safety**: Always use explicit types. Avoid `any` unless TypeScript type system limitations or third-party libraries require it (e.g., some Zod or schema code). Use `as` type assertions and type guards where necessary, and document why with a comment if suppressing linter rules.
    ```typescript
    // Good
    function processMessage(message: string): Promise<Response> {
