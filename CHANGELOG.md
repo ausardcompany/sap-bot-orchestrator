@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatic permission rules for execute operations
   - Priority-based permission system (priority 200) to override default ask prompts
   - External directory support for full agentic capability
+- Centralized logger utility for consistent logging across the application
+  - Replaces direct console calls to improve ESLint compliance
+  - Supports log levels: debug, info, warn, error
+  - Configurable log level filtering
+  - Exported from utils module for project-wide usage
 
 ### Changed
 
@@ -40,12 +45,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - External directories enabled for agentic operations
   - High-priority allow rules for write and execute actions
 - Updated env.ts to export env function with proper return type handling
+- Improved TypeScript type safety in core modules
+  - Fixed type assertions in router.ts for model capability filtering
+  - Added explicit type annotations for Zod schema interfaces in tool system
+  - Enhanced type safety in event bus with proper any type handling
+- Enhanced ESLint configuration
+  - Added specific rule exceptions for logger utility to allow console usage
+  - Configured no-console warning globally with targeted exceptions
+  - Added explicit any type disable comments where necessary for Zod internals
 
 ### Fixed
 
 - Resolved relative path handling in write/edit tools for CI permission checks
 - Fixed zero-width space characters in GitHub workflow expressions
 - Corrected file path specifications in documentation workflow scope
+- Fixed TypeScript type assertion issues in model registry filtering
+- Improved type safety in Zod schema conversion for tool definitions
 
 ## [0.1.3] - 2024-01-XX
 
