@@ -6,7 +6,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { AliasManager, getAliasManager, resetAliasManager } from '../aliases.js';
+import { AliasManager, DEFAULT_ALIASES, getAliasManager, resetAliasManager } from '../aliases.js';
+import { ORCHESTRATION_MODELS } from '../../providers/sapOrchestration.js';
 
 describe('AliasManager', () => {
   let testDir: string;
@@ -277,6 +278,177 @@ describe('AliasManager', () => {
       const instance2 = getAliasManager();
 
       expect(instance1).not.toBe(instance2);
+    });
+  });
+
+  describe('DEFAULT_ALIASES model validity', () => {
+    it('all model aliases should point to valid ORCHESTRATION_MODELS', () => {
+      const modelAliases = DEFAULT_ALIASES.filter((a) => a.command.startsWith('/model '));
+      const invalid: string[] = [];
+
+      for (const alias of modelAliases) {
+        const modelId = alias.command.slice('/model '.length).trim();
+        if (!(ORCHESTRATION_MODELS as readonly string[]).includes(modelId)) {
+          invalid.push(`/${alias.name} → ${modelId}`);
+        }
+      }
+
+      expect(invalid).toEqual([]);
+    });
+
+    it('should not contain removed invalid model aliases (opus, haiku, gpt4m)', () => {
+      const aliasNames = DEFAULT_ALIASES.map((a) => a.name);
+      expect(aliasNames).not.toContain('opus');
+      expect(aliasNames).not.toContain('haiku');
+      expect(aliasNames).not.toContain('gpt4m');
+    });
+
+    it('should contain aliases for all major provider families', () => {
+      const commands = DEFAULT_ALIASES.map((a) => a.command);
+      // OpenAI
+      expect(commands.some((c) => c.includes('gpt-4o'))).toBe(true);
+      // Anthropic
+      expect(commands.some((c) => c.includes('anthropic--claude'))).toBe(true);
+      // Google
+      expect(commands.some((c) => c.includes('gemini'))).toBe(true);
+      // Meta
+      expect(commands.some((c) => c.includes('meta--llama'))).toBe(true);
+      // DeepSeek
+      expect(commands.some((c) => c.includes('deepseek'))).toBe(true);
+    });
+  });
+
+  describe('upgrade migration', () => {
+    it('should merge new default aliases into an existing aliases file', () => {
+      // Simulate an old aliases.json that only has gpt4 and claude
+      const oldAliases = {
+        version: 1,
+        aliases: [
+          { name: 'gpt4', command: '/model gpt-4o', description: 'GPT-4o', created: 1 },
+          {
+            name: 'claude',
+            command: '/model anthropic--claude-4.5-sonnet',
+            description: 'Claude',
+            created: 1,
+          },
+        ],
+      };
+      fs.writeFileSync(path.join(testDir, 'aliases.json'), JSON.stringify(oldAliases));
+
+      const mgr = new AliasManager({ dataDir: testDir });
+
+      // New defaults (e.g. /gemini, /deepseek) should have been merged in
+      expect(mgr.get('gemini')).toBeDefined();
+      expect(mgr.get('deepseek')).toBeDefined();
+      // User aliases should be preserved
+      expect(mgr.get('gpt4')?.command).toBe('/model gpt-4o');
+      expect(mgr.get('claude')?.command).toBe('/model anthropic--claude-4.5-sonnet');
+    });
+
+    it('should remove stale aliases that point to invalid model IDs', () => {
+      // Simulate old aliases.json with the three now-invalid aliases
+      const staleAliases = {
+        version: 1,
+        aliases: [
+          {
+            name: 'gpt4m',
+            command: '/model gpt-4o-mini',
+            description: 'old',
+            created: 1,
+          },
+          {
+            name: 'opus',
+            command: '/model anthropic--claude-4.5-opus',
+            description: 'old',
+            created: 1,
+          },
+          {
+            name: 'haiku',
+            command: '/model anthropic--claude-4.5-haiku',
+            description: 'old',
+            created: 1,
+          },
+          // A user-added alias with same name but a custom command should NOT be removed
+          {
+            name: 'custom',
+            command: '/model gpt-4o',
+            description: 'kept',
+            created: 1,
+          },
+        ],
+      };
+      fs.writeFileSync(path.join(testDir, 'aliases.json'), JSON.stringify(staleAliases));
+
+      const mgr = new AliasManager({ dataDir: testDir });
+
+      expect(mgr.get('gpt4m')).toBeUndefined();
+      expect(mgr.get('opus')).toBeUndefined();
+      expect(mgr.get('haiku')).toBeUndefined();
+      // Unrelated user alias should survive
+      expect(mgr.get('custom')?.command).toBe('/model gpt-4o');
+    });
+
+    it('should not remove a stale-named alias if it has been customised to a valid command', () => {
+      // User renamed /opus to point to a valid model themselves
+      const customisedAliases = {
+        version: 1,
+        aliases: [
+          {
+            name: 'opus',
+            command: '/model anthropic--claude-3.7-sonnet',
+            description: 'custom',
+            created: 1,
+          },
+        ],
+      };
+      fs.writeFileSync(path.join(testDir, 'aliases.json'), JSON.stringify(customisedAliases));
+
+      const mgr = new AliasManager({ dataDir: testDir });
+
+      // The stale check only removes exact stale command matches, so this survives
+      expect(mgr.get('opus')?.command).toBe('/model anthropic--claude-3.7-sonnet');
+    });
+
+    it('should persist the migrated state back to disk', () => {
+      const oldAliases = {
+        version: 1,
+        aliases: [{ name: 'gpt4', command: '/model gpt-4o', created: 1 }],
+      };
+      fs.writeFileSync(path.join(testDir, 'aliases.json'), JSON.stringify(oldAliases));
+
+      new AliasManager({ dataDir: testDir });
+
+      // Re-read the file: new defaults should have been saved
+      const saved = JSON.parse(fs.readFileSync(path.join(testDir, 'aliases.json'), 'utf-8'));
+      const savedNames = saved.aliases.map((a: { name: string }) => a.name);
+      expect(savedNames).toContain('gemini');
+    });
+  });
+
+  describe('/claude and /sonnet alias resolution', () => {
+    it('/claude should resolve to claude-4.5-sonnet', () => {
+      const resolved = aliasManager.resolve('/claude');
+      expect(resolved).toBe('/model anthropic--claude-4.5-sonnet');
+    });
+
+    it('/sonnet should resolve to claude-3.7-sonnet', () => {
+      const resolved = aliasManager.resolve('/sonnet');
+      expect(resolved).toBe('/model anthropic--claude-3.7-sonnet');
+    });
+
+    it('/gpt4 should resolve to gpt-4o', () => {
+      const resolved = aliasManager.resolve('/gpt4');
+      expect(resolved).toBe('/model gpt-4o');
+    });
+
+    it('/gemini should resolve to gemini-2.5-flash', () => {
+      const resolved = aliasManager.resolve('/gemini');
+      expect(resolved).toBe('/model gemini-2.5-flash');
+    });
+
+    it('/deepseek should resolve to deepseek-ai--deepseek-r1', () => {
+      const resolved = aliasManager.resolve('/deepseek');
+      expect(resolved).toBe('/model deepseek-ai--deepseek-r1');
     });
   });
 });
