@@ -1,12 +1,12 @@
-# SAP Bot Orchestrator
+# Alexi
 
 Intelligent LLM orchestrator for SAP AI Core with automatic model routing, multi-turn conversations, and rule-based configuration.
 
 ## Features
 
 ✅ **Multi-Provider Support**
-- OpenAI-compatible models via proxy (GPT-4o, GPT-4.1, GPT-4o-mini)
-- Claude models via native Bedrock Converse API (Claude 4 Sonnet, Claude 3.5 Sonnet, Claude 3 Haiku)
+- OpenAI-compatible models (GPT-4o, GPT-4.1, GPT-4o-mini)
+- Claude models via SAP AI Core (Claude 4.5 Sonnet, Claude 4.5 Haiku, Claude 4.5 Opus)
 - Extensible architecture for additional providers
 
 ✅ **Intelligent Auto-Routing**
@@ -38,10 +38,10 @@ For macOS/Linux users with access to the ausardcompany private tap:
 brew tap ausardcompany/tap git@github.com:ausardcompany/homebrew-tap.git
 
 # Install
-brew install sap-bot-orchestrator
+brew install alexi
 
 # Use the CLI
-sap-bot chat -m "Hello!"
+alexi chat -m "Hello!"
 ```
 
 ### From Source
@@ -63,14 +63,10 @@ npm install
 ### 2. Configure Environment
 Create a `.env` file (see `.env.example`):
 ```bash
-# Proxy configuration (for OpenAI-compatible models)
-SAP_PROXY_BASE_URL=http://127.0.0.1:3001/v1
-SAP_PROXY_API_KEY=your_secret_key
-SAP_PROXY_MODEL=gpt-4o
-
-# Native SAP AI Core (for Claude models)
+# Native SAP AI Core
 AICORE_SERVICE_KEY='{"clientid":"...","clientsecret":"...","url":"...","serviceurls":{"AI_API_URL":"..."}}'
 AICORE_RESOURCE_GROUP=your-resource-group-id
+AICORE_MODEL=gpt-4o  # Default model
 ```
 
 ### 3. Build
@@ -81,27 +77,32 @@ npm run build
 ### 4. Run Commands
 ```bash
 # Simple chat
-node dist/cli/program.js chat -m "What is 2+2?"
+alexi chat -m "What is 2+2?"
 
 # Auto-routing with cost optimization
-node dist/cli/program.js chat -m "Write a function to reverse a string" --auto-route --prefer-cheap
+alexi chat -m "Write a function to reverse a string" --auto-route --prefer-cheap
 
 # Continue a conversation
-node dist/cli/program.js chat -m "Now make it recursive" --session <session-id> --auto-route
+alexi chat -m "Now make it recursive" --session <session-id> --auto-route
 
 # Explain routing decision
-node dist/cli/program.js explain -m "Prove that sqrt(2) is irrational"
+alexi explain -m "Prove that sqrt(2) is irrational"
+
+# Start interactive mode
+alexi interactive
+# or use the short alias
+alexi i
 ```
 
 ## Commands
 
 ### `chat` - Send messages to LLMs
 ```bash
-node dist/cli/program.js chat -m "your message" [options]
+alexi chat -m "your message" [options]
 
 Options:
   -m, --message <text>    Message to send (required)
-  --model <id>            Override model selection (e.g., gpt-4o, claude-4-sonnet)
+  --model <id>            Override model selection (e.g., gpt-4o, anthropic--claude-4.5-sonnet)
   --auto-route            Enable automatic model routing
   --prefer-cheap          Prefer cheaper models when auto-routing
   --session <id>          Continue existing session
@@ -111,18 +112,58 @@ Options:
 Examples:
 ```bash
 # Use specific model
-node dist/cli/program.js chat -m "Hello" --model gpt-4o-mini
+alexi chat -m "Hello" --model gpt-4o-mini
 
 # Auto-route with cost optimization
-node dist/cli/program.js chat -m "What is AI?" --auto-route --prefer-cheap
+alexi chat -m "What is AI?" --auto-route --prefer-cheap
 
 # Continue conversation in session
-node dist/cli/program.js chat -m "Tell me more" --session abc-123 --auto-route
+alexi chat -m "Tell me more" --session abc-123 --auto-route
 ```
+
+### `agent` - Run autonomous agent mode
+```bash
+alexi agent -m "your task" [options]
+
+Options:
+  -m, --message <text>      Message/task to execute (required)
+  -f, --message-file <path> Read message from file
+  --model <id>              Model ID override
+  --auto-route              Enable automatic model routing
+  --prefer-cheap            Prefer cheaper models when auto-routing
+  --session <id>            Continue existing session
+  --system <prompt>         System prompt for the conversation
+  --max-iterations <n>      Maximum tool execution iterations (default: 50)
+  --workdir <path>          Working directory for tool execution
+  --tools <list>            Comma-separated list of tool names to enable
+  -v, --verbose             Show progress updates
+  -q, --quiet               Only output the final response
+```
+
+The agent command enables tool execution capabilities, allowing the LLM to:
+- Read and write files
+- Execute shell commands
+- Interact with the filesystem
+- Complete multi-step tasks autonomously
+
+### `interactive` - Start interactive REPL
+```bash
+alexi interactive [options]
+alexi i [options]  # short alias
+
+Options:
+  --model <id>        Model ID to use
+  --auto-route        Enable automatic model routing
+  --prefer-cheap      Prefer cheaper models when auto-routing
+  --session <id>      Continue existing session
+  --system <prompt>   System prompt for the conversation
+```
+
+Start an interactive chat session with streaming responses and slash commands.
 
 ### `explain` - Analyze routing decisions
 ```bash
-node dist/cli/program.js explain -m "your message"
+alexi explain -m "your message"
 ```
 
 Shows:
@@ -143,8 +184,8 @@ Estimated Tokens: 19
 • reasoning-for-math (priority: 80): Use reasoning models for math problems
 
 === Model Candidates (by score) ===
-✓ gpt-4.1              Score: 120 - expensive tier, strong at deep-reasoning, has reasoning
-  claude-4-sonnet      Score: 120 - expensive tier, strong at deep-reasoning, has reasoning
+✓ gpt-4.1                    Score: 120 - expensive tier, strong at deep-reasoning, has reasoning
+  anthropic--claude-4.5-opus Score: 120 - expensive tier, strong at deep-reasoning, has reasoning
   ...
 
 === Selected Model ===
@@ -154,25 +195,184 @@ Confidence: 100%
 Rule Applied: reasoning-for-math
 ```
 
+### `stages` - Manage development stages
+```bash
+# List available stages
+alexi stages
+
+# Set current development stage
+alexi stage-set -s <stage-type> [-n <number>] [--name <name>]
+
+Stage types: architecture, planning, implementation, documentation, devops, security
+```
+
+Development stages help organize work and track expected artifacts and Definition of Done criteria.
+
+### `notes` - Manage notes
+```bash
+# Generate AI_NOTES.md for current stage
+alexi notes-generate [-o <output-file>]
+```
+
+Generates documentation notes based on the current development stage.
+
+### `dod` - Definition of Done checker
+```bash
+# Run DoD checks for a stage
+alexi dod-check [-s <stage>] [-o <output-file>]
+
+# List available DoD checks
+alexi dod-list
+```
+
+Run Definition of Done checks to verify stage completion criteria.
+
+### `context` - Manage project context
+```bash
+# Show current project context
+alexi context
+
+# Initialize project context
+alexi context-init -n <name> [-d <description>] [--language <lang>] [--framework <fw>]
+
+# Add architecture invariant
+alexi context-add-invariant -i <invariant-text>
+```
+
 ### `sessions` - List all saved sessions
 ```bash
-node dist/cli/program.js sessions
+alexi sessions
 ```
 
 ### `session-export` - Export session to markdown
 ```bash
-node dist/cli/program.js session-export -s <session-id> [-o output.md]
+alexi session-export -s <session-id> [-o output.md]
 ```
 
 ### `session-delete` - Delete a session
 ```bash
-node dist/cli/program.js session-delete -s <session-id>
+alexi session-delete -s <session-id>
 ```
 
-### `models` - List available models (proxy only)
+### `models` - List available models
 ```bash
-node dist/cli/program.js models
+alexi models
 ```
+
+## Interactive Mode Commands
+
+When in interactive mode (`alexi interactive` or `alexi i`), use these slash commands:
+
+### Basic Commands
+| Command | Description |
+|---------|-------------|
+| `/help` | Show available commands |
+| `/exit`, `/quit`, `/q` | Exit the REPL |
+| `/clear` | Clear screen |
+| `/history` | Show conversation history |
+
+### Model & Routing
+| Command | Description |
+|---------|-------------|
+| `/model <id>` | Switch to a different model |
+| `/models` | List available models |
+| `/autoroute` | Toggle auto model routing |
+
+### Session Management
+| Command | Description |
+|---------|-------------|
+| `/session` | Show current session info |
+| `/sessions` | List all sessions |
+| `/session load <id>` | Load a previous session |
+| `/session new` | Start a new session |
+| `/session export` | Export session to markdown |
+| `/fork [name]` | Fork current session |
+| `/rename <name>` | Rename current session |
+
+### Context & History
+| Command | Description |
+|---------|-------------|
+| `/compact` | Compact conversation history |
+| `/context` | Show context usage (tokens) |
+| `/status` | Show current status |
+| `/tokens` | Show token usage stats |
+| `/clear-history` | Clear conversation history |
+
+### File Changes
+| Command | Description |
+|---------|-------------|
+| `/diff` | Show files changed in session |
+| `/undo` | Undo last file change |
+| `/redo` | Redo last undone change |
+
+### Agents & Stages
+| Command | Description |
+|---------|-------------|
+| `/agent <name>` | Switch agent (code, debug, plan, explore, orchestrator) |
+| `/stage <name>` | Switch development stage |
+| `/dod` | Run Definition of Done checks |
+
+### Configuration
+| Command | Description |
+|---------|-------------|
+| `/config` | Show current configuration |
+| `/config path` | Show config file paths |
+| `/config set <key> <value>` | Set configuration value |
+| `/system <prompt>` | Set system prompt |
+
+### MCP Servers
+| Command | Description |
+|---------|-------------|
+| `/mcp` | List MCP servers |
+| `/mcp connect <name>` | Connect to MCP server |
+| `/mcp disconnect <name>` | Disconnect from server |
+| `/mcp status` | Show connection status |
+
+### Cost & Memory
+| Command | Description |
+|---------|-------------|
+| `/cost` | Show today's cost summary |
+| `/cost month` | Show this month's costs |
+| `/cost all` | Show all-time costs |
+| `/cost export` | Export cost history to CSV |
+| `/remember <text>` | Save a memory (use #tags) |
+| `/memory` | List all memories |
+| `/memory search <query>` | Search memories |
+| `/memory stats` | Show memory statistics |
+
+### Data & Export
+| Command | Description |
+|---------|-------------|
+| `/export [file]` | Export all data |
+| `/import <file>` | Import data from file |
+| `/stats` | Show usage statistics |
+
+### Aliases & Templates
+| Command | Description |
+|---------|-------------|
+| `/alias` | List command aliases |
+| `/alias <name> <cmd>` | Create alias |
+| `/snippet` | List code snippets |
+| `/template` | List message templates |
+
+### Other
+| Command | Description |
+|---------|-------------|
+| `/think [on\|off]` | Toggle extended thinking mode |
+| `/doctor` | Run environment health checks |
+| `/permissions` | List permission rules |
+| `/bug`, `/feedback` | Report issues |
+
+## Available Models
+
+| Model ID | Type | Cost Tier | Reasoning | Best For |
+|----------|------|-----------|-----------|----------|
+| `gpt-4o-mini` | OpenAI | Cheap | No | Simple QA, classification, extraction |
+| `gpt-4o` | OpenAI | Medium | No | Coding, analysis, creative writing, vision |
+| `gpt-4.1` | OpenAI | Expensive | Yes | Deep reasoning, complex math, research |
+| `anthropic--claude-4.5-haiku` | Claude | Cheap | No | Simple QA, classification, summarization |
+| `anthropic--claude-4.5-sonnet` | Claude | Medium | No | Coding, analysis, long-context, technical writing |
+| `anthropic--claude-4.5-opus` | Claude | Expensive | Yes | Deep reasoning, complex analysis, research |
 
 ## Routing Configuration
 
@@ -198,7 +398,7 @@ Create a `routing-config.json` in the project root (see `routing-config.example.
       "condition": {
         "minLength": 10000
       },
-      "modelId": "claude-3.5-sonnet",
+      "modelId": "anthropic--claude-4.5-sonnet",
       "priority": 100
     },
     {
@@ -228,10 +428,9 @@ Create a `routing-config.json` in the project root (see `routing-config.example.
 ## Architecture
 
 ### Provider Resolution
-The orchestrator automatically selects the appropriate provider based on model ID:
-- **GPT models** → OpenAI-compatible proxy (`/v1/chat/completions`)
-- **Claude models** → Native Bedrock Converse API (`/converse`)
-- **Anthropic models** → Anthropic Messages API (`/v1/messages`)
+The orchestrator routes all requests through SAP AI Core's orchestration service:
+- **GPT models** → SAP AI Core Orchestration API
+- **Claude models** → SAP AI Core Orchestration API
 
 ### Routing Logic
 1. Check for forced model via `--model` flag
@@ -243,7 +442,7 @@ The orchestrator automatically selects the appropriate provider based on model I
 3. Otherwise use default model from environment
 
 ### Session Management
-- Sessions stored in `~/.sap-bot-orchestrator/sessions/`
+- Sessions stored in `~/.alexi/sessions/`
 - Auto-generated session IDs (UUID)
 - Conversation history preserved with token tracking
 - Automatic title generation from first message
@@ -260,8 +459,20 @@ npm run build
 # Run in dev mode with tsx
 npm run dev -- chat -m "test"
 
-# Watch mode for development
-npm run dev:watch
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Lint code
+npm run lint
+
+# Format code
+npm run format
+
+# Type check
+npm run typecheck
 ```
 
 ## Autonomous Self-Updating System
@@ -337,16 +548,16 @@ Test different scenarios:
 
 ```bash
 # Simple query (should use gpt-4o-mini)
-node dist/cli/program.js explain -m "What is the capital of France?"
+alexi explain -m "What is the capital of France?"
 
-# Coding task (should use gpt-4o or claude-3.5-sonnet)
-node dist/cli/program.js explain -m "Write a function to sort an array"
+# Coding task (should use gpt-4o or anthropic--claude-4.5-sonnet)
+alexi explain -m "Write a function to sort an array"
 
-# Complex reasoning (should use gpt-4.1 or claude-4-sonnet)
-node dist/cli/program.js explain -m "Prove the Pythagorean theorem step by step"
+# Complex reasoning (should use gpt-4.1 or anthropic--claude-4.5-opus)
+alexi explain -m "Prove the Pythagorean theorem step by step"
 
 # Long context (should use Claude if rule enabled)
-node dist/cli/program.js explain -m "$(cat very_long_document.txt)"
+alexi explain -m "$(cat very_long_document.txt)"
 ```
 
 ## Roadmap
@@ -359,8 +570,8 @@ node dist/cli/program.js explain -m "$(cat very_long_document.txt)"
 - [x] Document grounding
 - [x] Translation support
 - [x] Embeddings support
-- [ ] Cost tracking and budget limits
-- [ ] Token usage analytics
+- [x] Cost tracking and budget limits
+- [x] Token usage analytics
 - [ ] Channel integrations (Telegram, Slack, WebChat)
 - [ ] Caching layer for repeated queries
 - [ ] A/B testing for routing strategies
