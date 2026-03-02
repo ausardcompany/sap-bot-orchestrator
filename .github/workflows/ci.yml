@@ -82,12 +82,17 @@ jobs:
           echo "Coverage check passed!"
 
       - name: Comment coverage on PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v7
+        continue-on-error: true
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
+            if (!fs.existsSync('coverage/coverage-summary.json')) {
+              console.log('Coverage summary not found, skipping comment');
+              return;
+            }
             const coverage = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
             const total = coverage.total;
             
