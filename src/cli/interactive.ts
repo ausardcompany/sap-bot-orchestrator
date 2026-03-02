@@ -227,7 +227,7 @@ async function handleCommand(input: string, state: ReplState): Promise<boolean> 
   const aliasManager = getAliasManager();
   const resolvedInput = aliasManager.resolve(input);
 
-  const parts = resolvedInput.slice(1).split(/\\s+/);
+  const parts = resolvedInput.slice(1).split(/\s+/);
   const cmd = parts[0].toLowerCase();
   const args = parts.slice(1);
 
