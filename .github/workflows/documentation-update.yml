@@ -236,33 +236,33 @@ jobs:
           # Determine which docs need updating based on changes
           # IMPORTANT: File paths in scope.md MUST include the full relative path (e.g., docs/ARCHITECTURE.md)
           # so the bot writes to the correct location
-          if [ "${​{ steps.analyze.outputs.cli_changed }}" = "true" ] || [ "${​{ steps.analyze.outputs.core_changed }}" = "true" ] || [ "${​{ steps.force_flag.outputs.force }}" = "true" ]; then
+          if [ "${{ steps.analyze.outputs.cli_changed }}" = "true" ] || [ "${{ steps.analyze.outputs.core_changed }}" = "true" ] || [ "${{ steps.force_flag.outputs.force }}" = "true" ]; then
             DOCS_TO_UPDATE="$DOCS_TO_UPDATE docs/ARCHITECTURE.md docs/API.md"
             echo "- docs/ARCHITECTURE.md (core component changes)" >> scope.md
             echo "- docs/API.md (CLI commands, APIs)" >> scope.md
           fi
           
-          if [ "${​{ steps.analyze.outputs.routing_changed }}" = "true" ] || [ "${​{ steps.force_flag.outputs.force }}" = "true" ]; then
+          if [ "${{ steps.analyze.outputs.routing_changed }}" = "true" ] || [ "${{ steps.force_flag.outputs.force }}" = "true" ]; then
             DOCS_TO_UPDATE="$DOCS_TO_UPDATE docs/ROUTING.md"
             echo "- docs/ROUTING.md (routing system documentation)" >> scope.md
           fi
           
-          if [ "${​{ steps.analyze.outputs.providers_changed }}" = "true" ] || [ "${​{ steps.force_flag.outputs.force }}" = "true" ]; then
+          if [ "${{ steps.analyze.outputs.providers_changed }}" = "true" ] || [ "${{ steps.force_flag.outputs.force }}" = "true" ]; then
             DOCS_TO_UPDATE="$DOCS_TO_UPDATE docs/PROVIDERS.md"
             echo "- docs/PROVIDERS.md (provider integration documentation)" >> scope.md
           fi
           
-          if [ "${​{ steps.analyze.outputs.config_changed }}" = "true" ] || [ "${​{ steps.force_flag.outputs.force }}" = "true" ]; then
+          if [ "${{ steps.analyze.outputs.config_changed }}" = "true" ] || [ "${{ steps.force_flag.outputs.force }}" = "true" ]; then
             DOCS_TO_UPDATE="$DOCS_TO_UPDATE docs/CONFIGURATION.md"
             echo "- docs/CONFIGURATION.md (configuration and settings)" >> scope.md
           fi
           
-          if [ "${​{ steps.analyze.outputs.tests_changed }}" = "true" ] || [ "${​{ steps.force_flag.outputs.force }}" = "true" ]; then
+          if [ "${{ steps.analyze.outputs.tests_changed }}" = "true" ] || [ "${{ steps.force_flag.outputs.force }}" = "true" ]; then
             DOCS_TO_UPDATE="$DOCS_TO_UPDATE docs/TESTING.md"
             echo "- docs/TESTING.md (testing guide)" >> scope.md
           fi
           
-          if [ "${​{ steps.analyze.outputs.workflows_changed }}" = "true" ] || [ "${​{ steps.analyze.outputs.scripts_changed }}" = "true" ] || [ "${​{ steps.force_flag.outputs.force }}" = "true" ]; then
+          if [ "${{ steps.analyze.outputs.workflows_changed }}" = "true" ] || [ "${{ steps.analyze.outputs.scripts_changed }}" = "true" ] || [ "${{ steps.force_flag.outputs.force }}" = "true" ]; then
             DOCS_TO_UPDATE="$DOCS_TO_UPDATE docs/AUTOMATION.md"
             echo "- docs/AUTOMATION.md (workflows and automation)" >> scope.md
           fi
