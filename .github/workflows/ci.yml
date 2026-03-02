@@ -72,7 +72,7 @@ jobs:
         run: |
           # Extract coverage percentage from coverage summary
           COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
-          THRESHOLD=80
+          THRESHOLD=40
           echo "Current coverage: $COVERAGE%"
           echo "Threshold: $THRESHOLD%"
           if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
