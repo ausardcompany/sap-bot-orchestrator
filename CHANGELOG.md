@@ -24,6 +24,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatic permission rules for execute operations
   - Priority-based permission system (priority 200) to override default ask prompts
   - External directory support for full agentic capability
+- Security scanning workflow with CodeQL and npm audit
+  - Weekly scheduled security scans
+  - CodeQL analysis for TypeScript code
+  - NPM audit for dependency vulnerabilities
+  - Runs on pull requests and pushes to master branch
+- Dependabot configuration for automated dependency updates
+  - Weekly dependency update checks
+  - Automatic grouping of dev dependencies
+  - Limited to 10 open pull requests at a time
+  - Covers TypeScript, ESLint, Vitest, and type definitions
+- CI workflow enhancements
+  - Coverage threshold enforcement at 40 percent
+  - Automatic PR comments with coverage reports
+  - JSON summary reporter for coverage data
+  - Resilient coverage comment handling with continue-on-error
 
 ### Changed
 
@@ -35,17 +50,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced write and edit tools with relative path resolution
   - Tools now resolve relative paths using workdir context for permission checks
   - Permission getResource functions receive ToolContext for path resolution
+  - Context parameter added to getResource signature in ToolDefinition interface
 - Updated agenticChat module with permission configuration
   - Project root set to workdir for permission checks
   - External directories enabled for agentic operations
   - High-priority allow rules for write and execute actions
 - Updated env.ts to export env function with proper return type handling
+- Vitest configuration updated with json-summary reporter
+  - Added json-summary to coverage reporters for CI integration
+  - Coverage thresholds adjusted to match current coverage levels
 
 ### Fixed
 
 - Resolved relative path handling in write/edit tools for CI permission checks
 - Fixed zero-width space characters in GitHub workflow expressions
 - Corrected file path specifications in documentation workflow scope
+- Coverage threshold check now properly reads from coverage-summary.json
+- Coverage PR comments now handle missing coverage files gracefully
 
 ## [0.1.3] - 2024-01-XX
 
