@@ -28,22 +28,50 @@ export interface AliasManagerOptions {
 // ============ Default Aliases ============
 
 export const DEFAULT_ALIASES: Omit<CommandAlias, 'created'>[] = [
+  // OpenAI
   { name: 'gpt4', command: '/model gpt-4o', description: 'Switch to GPT-4o' },
-  { name: 'gpt4m', command: '/model gpt-4o-mini', description: 'Switch to GPT-4o Mini' },
+  { name: 'gpt41', command: '/model gpt-4.1', description: 'Switch to GPT-4.1' },
+  { name: 'gpt5', command: '/model gpt-5', description: 'Switch to GPT-5' },
+  { name: 'gpt5m', command: '/model gpt-5-mini', description: 'Switch to GPT-5 Mini' },
+  // Anthropic
   {
     name: 'claude',
     command: '/model anthropic--claude-4.5-sonnet',
     description: 'Switch to Claude 4.5 Sonnet',
   },
   {
-    name: 'opus',
-    command: '/model anthropic--claude-4.5-opus',
-    description: 'Switch to Claude 4.5 Opus',
+    name: 'sonnet',
+    command: '/model anthropic--claude-3.7-sonnet',
+    description: 'Switch to Claude 3.7 Sonnet',
+  },
+  // Google
+  {
+    name: 'gemini',
+    command: '/model gemini-2.5-flash',
+    description: 'Switch to Gemini 2.5 Flash',
   },
   {
-    name: 'haiku',
-    command: '/model anthropic--claude-4.5-haiku',
-    description: 'Switch to Claude 4.5 Haiku',
+    name: 'geminipro',
+    command: '/model gemini-2.5-pro',
+    description: 'Switch to Gemini 2.5 Pro',
+  },
+  // Meta
+  {
+    name: 'llama',
+    command: '/model meta--llama3.1-70b-instruct',
+    description: 'Switch to Llama 3.1 70B',
+  },
+  // DeepSeek
+  {
+    name: 'deepseek',
+    command: '/model deepseek-ai--deepseek-r1',
+    description: 'Switch to DeepSeek R1',
+  },
+  // Amazon
+  {
+    name: 'nova',
+    command: '/model amazon--nova-pro',
+    description: 'Switch to Amazon Nova Pro',
   },
   { name: 'new', command: '/session new', description: 'Start a new session' },
   { name: 'clr', command: '/clear', description: 'Clear screen' },
@@ -206,6 +234,33 @@ export class AliasManager {
           if (entry.name && entry.command) {
             this.aliases.set(entry.name.toLowerCase(), entry);
           }
+        }
+
+        // Merge any new defaults that don't exist in the saved file yet,
+        // and update stale defaults whose command has changed
+        // (handles upgrades where aliases were added or corrected in DEFAULT_ALIASES)
+        const STALE_COMMANDS: Record<string, string> = {
+          gpt4m: '/model gpt-4o-mini',
+          opus: '/model anthropic--claude-4.5-opus',
+          haiku: '/model anthropic--claude-4.5-haiku',
+        };
+        let needsSave = false;
+        for (const def of DEFAULT_ALIASES) {
+          if (!this.aliases.has(def.name)) {
+            this.aliases.set(def.name, { ...def, created: Date.now() });
+            needsSave = true;
+          }
+        }
+        // Remove aliases that pointed to now-invalid model IDs
+        for (const [name, staleCmd] of Object.entries(STALE_COMMANDS)) {
+          const existing = this.aliases.get(name);
+          if (existing && existing.command === staleCmd) {
+            this.aliases.delete(name);
+            needsSave = true;
+          }
+        }
+        if (needsSave) {
+          this.saveAliases();
         }
       } else {
         // Initialize with defaults
