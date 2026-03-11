@@ -6,6 +6,9 @@
 
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as os from 'os';
 import { ToolExecutionStarted, ToolExecutionCompleted, ToolExecutionFailed } from '../bus/index.js';
 import { getPermissionManager, type PermissionAction } from '../permission/index.js';
 import type { AutoCommitManager } from '../git/autoCommit.js';
@@ -96,6 +99,63 @@ function truncateOutput(output: string): { content: string; truncated: boolean }
   }
 
   return { content: result, truncated: true };
+}
+
+// Directory for persisting large tool outputs
+const TOOL_OUTPUT_DIR = path.join(os.homedir(), '.alexi', 'tool-output');
+
+/**
+ * Persist large tool output to disk so truncated data is recoverable.
+ * Returns the file path if persisted, or null if output was within limits.
+ */
+async function persistLargeOutput(output: string, toolName: string): Promise<string | null> {
+  const lines = output.split('\n');
+  const bytes = Buffer.byteLength(output, 'utf-8');
+  if (lines.length <= MAX_LINES && bytes <= MAX_BYTES) {
+    return null;
+  }
+
+  try {
+    await fs.mkdir(TOOL_OUTPUT_DIR, { recursive: true });
+    const filename = `${toolName}-${nanoid(8)}.txt`;
+    const filePath = path.join(TOOL_OUTPUT_DIR, filename);
+    await fs.writeFile(filePath, output, 'utf-8');
+    return filePath;
+  } catch {
+    // Non-fatal: if we can't persist, proceed without it
+    return null;
+  }
+}
+
+/**
+ * Clean up old tool output files.
+ * Removes files older than maxAgeMs (default: 24 hours).
+ * Returns the number of files removed.
+ */
+async function cleanupToolOutputs(maxAgeMs = 24 * 60 * 60 * 1000): Promise<number> {
+  try {
+    const entries = await fs.readdir(TOOL_OUTPUT_DIR);
+    const now = Date.now();
+    let removed = 0;
+
+    for (const entry of entries) {
+      const filePath = path.join(TOOL_OUTPUT_DIR, entry);
+      try {
+        const stat = await fs.stat(filePath);
+        if (now - stat.mtimeMs > maxAgeMs) {
+          await fs.unlink(filePath);
+          removed++;
+        }
+      } catch {
+        // Skip files we can't stat or remove
+      }
+    }
+
+    return removed;
+  } catch {
+    // Directory may not exist yet
+    return 0;
+  }
 }
 
 /**
@@ -360,4 +420,11 @@ export function getAllToolSchemas(): Array<{
 }
 
 // Re-export for convenience
-export { truncateOutput, MAX_LINES, MAX_BYTES };
+export {
+  truncateOutput,
+  MAX_LINES,
+  MAX_BYTES,
+  persistLargeOutput,
+  cleanupToolOutputs,
+  TOOL_OUTPUT_DIR,
+};

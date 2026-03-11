@@ -27,6 +27,13 @@ import { getStatsManager } from '../core/stats.js';
 import { getAliasManager } from '../core/aliases.js';
 import { getSnippetManager } from '../core/snippets.js';
 import { getTemplateManager } from '../core/templates.js';
+import {
+  type EffortLevel,
+  EFFORT_CONFIGS,
+  DEFAULT_EFFORT,
+  EFFORT_LEVELS,
+  parseEffortLevel,
+} from '../core/effortLevel.js';
 
 export interface InteractiveOptions {
   model?: string;
@@ -51,6 +58,7 @@ interface ReplState {
   agent?: string;
   stage?: ConversationStage;
   thinkingMode?: boolean;
+  effort?: EffortLevel;
   gitManager?: AutoCommitManager;
   repoMapManager?: RepoMapManager;
 }
@@ -173,6 +181,9 @@ function printHelp(): void {
   console.log(c('yellow', '  /mcp disconnect <n>') + c('gray', '- Disconnect from MCP server'));
   console.log(c('yellow', '  /mcp status') + c('gray', '        - Show MCP connection status'));
   console.log(c('yellow', '  /think [on|off]') + c('gray', '    - Toggle extended thinking mode'));
+  console.log(
+    c('yellow', '  /effort [low|med|high]') + c('gray', ' - Set effort level (cost/quality)')
+  );
   console.log(c('yellow', '  /doctor') + c('gray', '            - Run environment health checks'));
   console.log(c('yellow', '  /clear-history') + c('gray', '     - Clear conversation history'));
   console.log(c('yellow', '  /bug, /feedback') + c('gray', '    - Report issues and feedback'));
@@ -804,6 +815,33 @@ async function handleCommand(input: string, state: ReplState): Promise<boolean> 
         console.log(c('yellow', '\n  Extended thinking mode disabled\n'));
       } else {
         console.log(c('yellow', '\n  Usage: /think [on|off]\n'));
+      }
+      return true;
+    }
+
+    case 'effort': {
+      if (args.length === 0) {
+        const current = state.effort ?? DEFAULT_EFFORT;
+        const cfg = EFFORT_CONFIGS[current];
+        console.log(c('gray', `\n  Effort level: ${c('cyan', cfg.label)}`));
+        console.log(
+          c('dim', `  (${cfg.maxIterations} max iterations, ${cfg.maxTokens} max tokens)\n`)
+        );
+        console.log(c('dim', `  Available: ${EFFORT_LEVELS.join(', ')}\n`));
+      } else {
+        const input = args[0] === 'med' ? 'medium' : args[0];
+        const level = parseEffortLevel(input);
+        if (level) {
+          state.effort = level;
+          const cfg = EFFORT_CONFIGS[level];
+          console.log(c('green', `\n  Effort level set to: ${cfg.label}`));
+          console.log(
+            c('dim', `  (${cfg.maxIterations} max iterations, ${cfg.maxTokens} max tokens)\n`)
+          );
+        } else {
+          console.log(c('yellow', `\n  Invalid effort level: ${args[0]}`));
+          console.log(c('gray', `  Available: ${EFFORT_LEVELS.join(', ')}\n`));
+        }
       }
       return true;
     }
@@ -1654,11 +1692,12 @@ export async function startInteractive(options: InteractiveOptions = {}): Promis
       }, 80);
 
       // Build effective system prompt with memory context
+      // Cache-friendly ordering: stable base prompt first, volatile memory last
       let effectiveSystemPrompt = state.systemPrompt;
       const memoryContext = getMemoryManager().getContextString();
       if (memoryContext) {
         effectiveSystemPrompt = effectiveSystemPrompt
-          ? `${memoryContext}\n\n${effectiveSystemPrompt}`
+          ? `${effectiveSystemPrompt}\n\n${memoryContext}`
           : memoryContext;
       }
 
@@ -1669,6 +1708,7 @@ export async function startInteractive(options: InteractiveOptions = {}): Promis
         sessionManager: state.sessionManager,
         systemPrompt: effectiveSystemPrompt,
         signal: state.abortController.signal,
+        effort: state.effort,
       });
 
       let result;

@@ -4,8 +4,9 @@
 
 import { z } from 'zod';
 import { spawn } from 'child_process';
+import { StringDecoder } from 'node:string_decoder';
 import * as path from 'path';
-import { defineTool, truncateOutput, type ToolResult } from '../index.js';
+import { defineTool, truncateOutput, persistLargeOutput, type ToolResult } from '../index.js';
 
 const BashParamsSchema = z.object({
   command: z.string().describe('The command to execute'),
@@ -55,10 +56,14 @@ Usage:
       let timedOut = false;
       let killed = false;
 
+      const stdoutDecoder = new StringDecoder('utf8');
+      const stderrDecoder = new StringDecoder('utf8');
+
       const proc = spawn(params.command, {
         shell: true,
         cwd: workdir,
         env: { ...process.env, FORCE_COLOR: '0' },
+        windowsHide: true,
       });
 
       // Handle timeout
@@ -80,18 +85,28 @@ Usage:
       };
       context.signal?.addEventListener('abort', abortHandler);
 
-      proc.stdout.on('data', (data) => {
-        stdout += data.toString();
+      proc.stdout.on('data', (data: Buffer) => {
+        stdout += stdoutDecoder.write(data);
       });
 
-      proc.stderr.on('data', (data) => {
-        stderr += data.toString();
+      proc.stderr.on('data', (data: Buffer) => {
+        stderr += stderrDecoder.write(data);
       });
 
-      proc.on('close', (code) => {
+      proc.on('close', async (code) => {
         clearTimeout(timer);
         context.signal?.removeEventListener('abort', abortHandler);
         killed = true;
+
+        // Flush any remaining bytes in the decoders
+        stdout += stdoutDecoder.end();
+        stderr += stderrDecoder.end();
+
+        // Persist large outputs to disk before truncating
+        const [stdoutFile, stderrFile] = await Promise.all([
+          persistLargeOutput(stdout, 'bash-stdout'),
+          persistLargeOutput(stderr, 'bash-stderr'),
+        ]);
 
         // Truncate output
         const { content: truncatedStdout, truncated: stdoutTruncated } = truncateOutput(stdout);
@@ -113,14 +128,27 @@ Usage:
           return;
         }
 
+        // Build hint with actual file paths when output was persisted
+        let hint: string | undefined;
+        if (stdoutTruncated || stderrTruncated) {
+          const fileParts: string[] = [];
+          if (stdoutFile) {
+            fileParts.push(`stdout: ${stdoutFile}`);
+          }
+          if (stderrFile) {
+            fileParts.push(`stderr: ${stderrFile}`);
+          }
+          hint =
+            fileParts.length > 0
+              ? `Output truncated. Full output saved to: ${fileParts.join(', ')}`
+              : 'Output truncated.';
+        }
+
         resolve({
           success: code === 0,
           data: result,
           truncated: stdoutTruncated || stderrTruncated,
-          hint:
-            stdoutTruncated || stderrTruncated
-              ? 'Output truncated. Full output was saved to a file.'
-              : undefined,
+          hint,
           error: code !== 0 ? `Command exited with code ${code}` : undefined,
         });
       });

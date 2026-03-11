@@ -10,6 +10,13 @@ import { defineTool, getTool, type ToolResult, type ToolContext } from '../index
 
 const MAX_BATCH_SIZE = 25;
 
+/**
+ * Critical tools whose failure should cause the whole batch to fail.
+ * Non-critical tool failures (read, glob, grep) are tolerated — the batch
+ * still reports partial success so the LLM can retry or work around them.
+ */
+const CRITICAL_TOOLS = new Set(['bash', 'write', 'edit', 'multiedit', 'delete']);
+
 const ToolInvocationSchema = z.object({
   tool: z.string().describe('The name of the tool to invoke'),
   params: z.record(z.string(), z.unknown()).describe('Parameters to pass to the tool'),
@@ -130,32 +137,61 @@ Best practices:
       };
     }
 
-    // Execute all invocations in parallel
+    // Execute all invocations in parallel using allSettled for isolation
     const promises = invocations.map((invocation, index) =>
       executeInvocation(invocation, index, context)
     );
 
-    const results = await Promise.all(promises);
+    const settled = await Promise.allSettled(promises);
+
+    // Extract results, treating rejected promises as failures
+    const results: InvocationResult[] = settled.map((outcome, index) => {
+      if (outcome.status === 'fulfilled') {
+        return outcome.value;
+      }
+      // Unexpected rejection — wrap it
+      const err = outcome.reason;
+      return {
+        tool: invocations[index].tool,
+        index,
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    });
 
     // Count successes and failures
     const successful = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success).length;
 
+    // Only count critical tool failures as batch-level failures
+    const criticalFailures = results.filter((r) => !r.success && CRITICAL_TOOLS.has(r.tool)).length;
+    const nonCriticalFailures = failed - criticalFailures;
+
+    // Build informative hint
+    let hint: string | undefined;
+    if (failed > 0) {
+      const parts: string[] = [];
+      if (criticalFailures > 0) {
+        parts.push(`${criticalFailures} critical failure(s)`);
+      }
+      if (nonCriticalFailures > 0) {
+        parts.push(`${nonCriticalFailures} non-critical failure(s)`);
+      }
+      hint = `${failed} of ${invocations.length} invocations failed (${parts.join(', ')}). Check individual results for details.`;
+    }
+
     return {
-      success: failed === 0,
+      success: criticalFailures === 0,
       data: {
         totalInvocations: invocations.length,
         successful,
         failed,
         results,
       },
-      hint:
-        failed > 0
-          ? `${failed} of ${invocations.length} invocations failed. Check individual results for details.`
-          : undefined,
+      hint,
     };
   },
 });
 
 // Export constants for testing
-export { MAX_BATCH_SIZE };
+export { MAX_BATCH_SIZE, CRITICAL_TOOLS };

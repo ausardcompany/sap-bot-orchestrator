@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { batchTool, MAX_BATCH_SIZE } from '../batch.js';
+import { batchTool, MAX_BATCH_SIZE, CRITICAL_TOOLS } from '../batch.js';
 import { registerTool, type Tool, type ToolContext } from '../../index.js';
 import { z } from 'zod';
 
@@ -201,13 +201,14 @@ describe('batch tool', () => {
         context
       );
 
-      expect(result.success).toBe(false);
+      // 'nonexistent' is not a critical tool, so batch still succeeds
+      expect(result.success).toBe(true);
       expect(result.data?.failed).toBe(1);
       expect(result.data?.results[0].success).toBe(false);
       expect(result.data?.results[0].error).toContain('Tool not found');
     });
 
-    it('should handle mixed success and failure', async () => {
+    it('should handle mixed success and failure (non-critical)', async () => {
       const result = await batchTool.executeUnsafe(
         {
           invocations: [
@@ -219,11 +220,13 @@ describe('batch tool', () => {
         context
       );
 
-      expect(result.success).toBe(false);
+      // 'failing' is not a critical tool, so batch still succeeds
+      expect(result.success).toBe(true);
       expect(result.data?.totalInvocations).toBe(3);
       expect(result.data?.successful).toBe(2);
       expect(result.data?.failed).toBe(1);
       expect(result.hint).toContain('1 of 3 invocations failed');
+      expect(result.hint).toContain('non-critical');
     });
 
     it('should prevent recursive batch calls', async () => {
@@ -240,7 +243,8 @@ describe('batch tool', () => {
         context
       );
 
-      expect(result.success).toBe(false);
+      // 'batch' is not a critical tool, so batch-level success is true
+      expect(result.success).toBe(true);
       expect(result.data?.results[1].success).toBe(false);
       expect(result.data?.results[1].error).toContain('Recursive batch calls are not allowed');
     });
@@ -367,6 +371,157 @@ describe('batch tool', () => {
 
       expect(result.data?.results[0].result).toBeUndefined();
       expect(result.data?.results[0].error).toBeDefined();
+    });
+  });
+
+  describe('error isolation (critical vs non-critical)', () => {
+    const mockWriteTool = {
+      name: 'write',
+      description: 'Mock write tool (critical)',
+      parameters: z.object({
+        filePath: z.string(),
+        content: z.string(),
+      }),
+      toFunctionSchema: () => ({
+        name: 'write',
+        description: 'Mock write tool',
+        parameters: {
+          type: 'object',
+          properties: { filePath: { type: 'string' }, content: { type: 'string' } },
+        },
+      }),
+      execute: vi.fn(async () => ({
+        success: false,
+        error: 'Write failed: permission denied',
+      })),
+      executeUnsafe: vi.fn(async () => ({
+        success: false,
+        error: 'Write failed: permission denied',
+      })),
+    } as unknown as Tool<z.ZodTypeAny, unknown>;
+
+    const mockBashTool = {
+      name: 'bash',
+      description: 'Mock bash tool (critical)',
+      parameters: z.object({
+        command: z.string(),
+      }),
+      toFunctionSchema: () => ({
+        name: 'bash',
+        description: 'Mock bash tool',
+        parameters: { type: 'object', properties: { command: { type: 'string' } } },
+      }),
+      execute: vi.fn(async () => ({
+        success: false,
+        error: 'Command failed',
+      })),
+      executeUnsafe: vi.fn(async () => ({
+        success: false,
+        error: 'Command failed',
+      })),
+    } as unknown as Tool<z.ZodTypeAny, unknown>;
+
+    it('should export CRITICAL_TOOLS set', () => {
+      expect(CRITICAL_TOOLS).toBeInstanceOf(Set);
+      expect(CRITICAL_TOOLS.has('bash')).toBe(true);
+      expect(CRITICAL_TOOLS.has('write')).toBe(true);
+      expect(CRITICAL_TOOLS.has('edit')).toBe(true);
+      expect(CRITICAL_TOOLS.has('multiedit')).toBe(true);
+      expect(CRITICAL_TOOLS.has('delete')).toBe(true);
+      expect(CRITICAL_TOOLS.has('read')).toBe(false);
+      expect(CRITICAL_TOOLS.has('glob')).toBe(false);
+      expect(CRITICAL_TOOLS.has('grep')).toBe(false);
+    });
+
+    it('should succeed when only non-critical tools fail', async () => {
+      // 'failing' is not in CRITICAL_TOOLS, so batch should succeed
+      const result = await batchTool.executeUnsafe(
+        {
+          invocations: [
+            { tool: 'read', params: { filePath: '/test.ts' } },
+            { tool: 'failing', params: { shouldFail: true } },
+          ],
+        },
+        context
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data?.failed).toBe(1);
+      expect(result.data?.successful).toBe(1);
+      expect(result.hint).toContain('non-critical');
+    });
+
+    it('should fail when a critical tool (write) fails', async () => {
+      registerTool(mockWriteTool);
+
+      const result = await batchTool.executeUnsafe(
+        {
+          invocations: [
+            { tool: 'read', params: { filePath: '/test.ts' } },
+            { tool: 'write', params: { filePath: '/out.ts', content: 'test' } },
+          ],
+        },
+        context
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.data?.failed).toBe(1);
+      expect(result.hint).toContain('critical');
+    });
+
+    it('should fail when a critical tool (bash) fails', async () => {
+      registerTool(mockBashTool);
+
+      const result = await batchTool.executeUnsafe(
+        {
+          invocations: [
+            { tool: 'bash', params: { command: 'echo hello' } },
+            { tool: 'read', params: { filePath: '/test.ts' } },
+          ],
+        },
+        context
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.data?.failed).toBe(1);
+      expect(result.hint).toContain('critical');
+    });
+
+    it('should fail when mixed critical and non-critical tools fail', async () => {
+      registerTool(mockWriteTool);
+
+      const result = await batchTool.executeUnsafe(
+        {
+          invocations: [
+            { tool: 'write', params: { filePath: '/out.ts', content: 'test' } },
+            { tool: 'failing', params: { shouldFail: true } },
+            { tool: 'read', params: { filePath: '/test.ts' } },
+          ],
+        },
+        context
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.data?.failed).toBe(2);
+      expect(result.hint).toContain('critical');
+      expect(result.hint).toContain('non-critical');
+    });
+
+    it('should distinguish critical and non-critical in hint', async () => {
+      registerTool(mockWriteTool);
+
+      const result = await batchTool.executeUnsafe(
+        {
+          invocations: [
+            { tool: 'write', params: { filePath: '/out.ts', content: 'test' } },
+            { tool: 'failing', params: { shouldFail: true } },
+          ],
+        },
+        context
+      );
+
+      expect(result.hint).toContain('1 critical failure(s)');
+      expect(result.hint).toContain('1 non-critical failure(s)');
     });
   });
 });

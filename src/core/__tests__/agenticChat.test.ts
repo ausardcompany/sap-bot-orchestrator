@@ -576,7 +576,7 @@ describe('agenticChat', () => {
     });
 
     describe('system prompt with contexts', () => {
-      it('should include systemPrompt after contexts in the system message', async () => {
+      it('should include systemPrompt before contexts in the system message (cache-friendly)', async () => {
         const memoryText = '## Decisions & Facts\n- Prefer functional style';
         const sessionText = '## Recent Session Context\n### Session: "Init" (2025-03-01)';
         const systemPromptText = 'You are a helpful assistant.';
@@ -595,12 +595,12 @@ describe('agenticChat', () => {
         expect(systemContent).toContain(sessionText);
         expect(systemContent).toContain(systemPromptText);
 
-        // Ordering: memory < session < systemPrompt
+        // Cache-friendly ordering: systemPrompt < memory < session
+        const systemPromptIndex = systemContent.indexOf(systemPromptText);
         const memoryIndex = systemContent.indexOf(memoryText);
         const sessionIndex = systemContent.indexOf(sessionText);
-        const systemPromptIndex = systemContent.indexOf(systemPromptText);
+        expect(systemPromptIndex).toBeLessThan(memoryIndex);
         expect(memoryIndex).toBeLessThan(sessionIndex);
-        expect(sessionIndex).toBeLessThan(systemPromptIndex);
       });
     });
 

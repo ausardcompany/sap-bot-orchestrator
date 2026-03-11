@@ -19,6 +19,7 @@ import { getPermissionManager } from '../permission/index.js';
 import type { CompletionResult, TokenUsage } from '../providers/sapOrchestration.js';
 import type { AutoCommitManager } from '../git/autoCommit.js';
 import type { RepoMapManager } from '../context/repoMap.js';
+import { type EffortLevel, getEffortConfig, DEFAULT_EFFORT } from './effortLevel.js';
 
 // Tool call from LLM response
 interface ToolCall {
@@ -56,6 +57,8 @@ export interface AgenticChatOptions {
   gitManager?: AutoCommitManager;
   /** Optional repo map manager for codebase indexing context */
   repoMapManager?: RepoMapManager;
+  /** Effort level for cost/quality tradeoff (default: 'medium') */
+  effort?: EffortLevel;
 }
 
 export interface AgenticProgressEvent {
@@ -190,7 +193,8 @@ export async function agenticChat(
   // Register built-in tools if not already registered
   registerBuiltInTools();
 
-  const maxIterations = options?.maxIterations ?? 50;
+  const effortConfig = getEffortConfig(options?.effort ?? DEFAULT_EFFORT);
+  const maxIterations = options?.maxIterations ?? effortConfig.maxIterations;
   const workdir = options?.workdir ?? process.cwd();
 
   // Configure permission manager to allow writes in the workdir
@@ -225,8 +229,10 @@ export async function agenticChat(
   let modelId: string;
   let routingReason: string | undefined;
 
+  const preferCheap = options?.preferCheap ?? effortConfig.preferCheap;
+
   if (options?.autoRoute && !options?.modelOverride) {
-    const decision = routePrompt(message, { preferCheap: options.preferCheap });
+    const decision = routePrompt(message, { preferCheap });
     modelId = decision.modelId;
     routingReason = decision.reason;
   } else {
@@ -273,15 +279,16 @@ export async function agenticChat(
   }
 
   /**
-   * Build the effective system prompt, optionally prepending the repo map,
-   * memory context, and recent session context.
+   * Build the effective system prompt with cache-friendly ordering.
+   * Stable content first (best prefix for prompt caching), volatile last:
+   *   base (agent persona) → memory → session → repoMap
    */
   function buildSystemPrompt(base?: string): string {
     const parts: string[] = [];
-    if (repoMapText) parts.push(repoMapText);
+    if (base) parts.push(base);
     if (memoryContext) parts.push(memoryContext);
     if (sessionContext) parts.push(sessionContext);
-    if (base) parts.push(base);
+    if (repoMapText) parts.push(repoMapText);
     return parts.join('\n\n');
   }
 

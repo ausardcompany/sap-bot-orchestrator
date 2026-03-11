@@ -7,6 +7,7 @@ import { getProviderForModel, getDefaultModel, type StreamChunk } from '../provi
 import { routePrompt } from './router.js';
 import { SessionManager } from './sessionManager.js';
 import { getCostTracker } from './costTracker.js';
+import { type EffortLevel, getEffortConfig, DEFAULT_EFFORT } from './effortLevel.js';
 
 export interface StreamingOptions {
   modelOverride?: string;
@@ -17,6 +18,8 @@ export interface StreamingOptions {
   signal?: AbortSignal;
   maxTokens?: number;
   temperature?: number;
+  /** Effort level for cost/quality tradeoff (default: 'medium') */
+  effort?: EffortLevel;
 }
 
 export interface StreamingResult {
@@ -41,12 +44,15 @@ export async function* streamChat(
   message: string,
   options?: StreamingOptions
 ): AsyncGenerator<StreamChunk, StreamingResult> {
+  const effortConfig = getEffortConfig(options?.effort ?? DEFAULT_EFFORT);
+  const preferCheap = options?.preferCheap ?? effortConfig.preferCheap;
+
   let modelId: string;
   let routingReason: string | undefined;
 
   // Auto-routing enabled?
   if (options?.autoRoute && !options?.modelOverride) {
-    const decision = routePrompt(message, { preferCheap: options.preferCheap });
+    const decision = routePrompt(message, { preferCheap });
     modelId = decision.modelId;
     routingReason = decision.reason;
   } else {
@@ -93,7 +99,7 @@ export async function* streamChat(
 
   // Stream using SAP Orchestration provider
   for await (const chunk of provider.streamComplete(messages, {
-    maxTokens: options?.maxTokens ?? 4096,
+    maxTokens: options?.maxTokens ?? effortConfig.maxTokens,
     temperature: options?.temperature,
     signal: options?.signal,
   })) {
