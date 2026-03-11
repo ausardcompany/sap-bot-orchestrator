@@ -6,6 +6,8 @@
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
+import { shouldCompact, compactConversation, estimateMessagesTokens } from './compaction.js';
+import { closeSession } from './sessionClose.js';
 
 export interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -32,12 +34,25 @@ export interface Session {
   messages: Message[];
 }
 
+export interface SessionManagerOptions {
+  sessionsDir?: string;
+  maxContextTokens?: number;
+  autoCompact?: boolean;
+}
+
 export class SessionManager {
   private sessionsDir: string;
   private activeSession: Session | null = null;
+  private maxContextTokens: number;
+  private autoCompact: boolean;
 
-  constructor(sessionsDir?: string) {
-    this.sessionsDir = sessionsDir || path.join(process.env.HOME || '~', '.alexi', 'sessions');
+  constructor(options?: string | SessionManagerOptions) {
+    const opts: SessionManagerOptions =
+      typeof options === 'string' ? { sessionsDir: options } : (options ?? {});
+
+    this.sessionsDir = opts.sessionsDir || path.join(process.env.HOME || '~', '.alexi', 'sessions');
+    this.maxContextTokens = opts.maxContextTokens ?? 128_000;
+    this.autoCompact = opts.autoCompact ?? true;
 
     // Ensure sessions directory exists
     if (!fs.existsSync(this.sessionsDir)) {
@@ -132,6 +147,11 @@ export class SessionManager {
     }
 
     this.saveSession(this.activeSession!);
+
+    // Auto-compact if enabled and context usage exceeds threshold
+    if (this.autoCompact && shouldCompact(this.activeSession!.messages, this.maxContextTokens)) {
+      this.compact().catch(() => {});
+    }
   }
 
   /**
@@ -221,6 +241,25 @@ export class SessionManager {
   }
 
   /**
+   * Close the active session, extract important knowledge, and store it as memories.
+   * Returns the number of memories created, or null if no session / too few messages.
+   */
+  async closeAndExtract(): Promise<{ memoriesCreated: number } | null> {
+    if (!this.activeSession) {
+      return null;
+    }
+
+    const { messages } = this.activeSession;
+    const sessionId = this.activeSession.metadata.id;
+
+    const memoriesCreated = closeSession(messages, sessionId);
+
+    this.activeSession = null;
+
+    return { memoriesCreated };
+  }
+
+  /**
    * Export session to markdown
    */
   exportToMarkdown(sessionId?: string): string {
@@ -248,6 +287,42 @@ export class SessionManager {
     }
 
     return markdown;
+  }
+
+  /**
+   * Manually trigger compaction on the active session
+   */
+  async compact(): Promise<{ saved: number; before: number; after: number } | null> {
+    if (!this.activeSession) {
+      return null;
+    }
+
+    const before = estimateMessagesTokens(this.activeSession.messages);
+    const { messages } = await compactConversation(this.activeSession.messages);
+
+    this.activeSession.messages = messages;
+    this.activeSession.metadata.messageCount = messages.length;
+    this.activeSession.metadata.updated = Date.now();
+    this.saveSession(this.activeSession);
+
+    const after = estimateMessagesTokens(messages);
+
+    return { saved: before - after, before, after };
+  }
+
+  /**
+   * Get current context window usage
+   */
+  getContextUsage(): { tokens: number; maxTokens: number; percent: number } | null {
+    if (!this.activeSession) {
+      return null;
+    }
+
+    const tokens = estimateMessagesTokens(this.activeSession.messages);
+    const percent =
+      this.maxContextTokens > 0 ? Math.round((tokens / this.maxContextTokens) * 100) : 0;
+
+    return { tokens, maxTokens: this.maxContextTokens, percent };
   }
 
   /**

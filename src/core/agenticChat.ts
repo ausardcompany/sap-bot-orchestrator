@@ -254,13 +254,35 @@ export async function agenticChat(
     }
   }
 
+  // Fetch memory context (non-blocking best-effort)
+  let memoryContext = '';
+  try {
+    const { getMemoryManager } = await import('./memory.js');
+    memoryContext = getMemoryManager().getContextString();
+  } catch {
+    // Non-fatal: proceed without memory context
+  }
+
+  // Fetch recent session context (non-blocking best-effort)
+  let sessionContext = '';
+  try {
+    const { getSessionContextString } = await import('./sessionContext.js');
+    sessionContext = getSessionContextString(workdir);
+  } catch {
+    // Non-fatal: proceed without session context
+  }
+
   /**
-   * Build the effective system prompt, optionally prepending the repo map.
+   * Build the effective system prompt, optionally prepending the repo map,
+   * memory context, and recent session context.
    */
   function buildSystemPrompt(base?: string): string {
-    if (!repoMapText) return base ?? '';
-    if (!base) return repoMapText;
-    return `${repoMapText}\n\n${base}`;
+    const parts: string[] = [];
+    if (repoMapText) parts.push(repoMapText);
+    if (memoryContext) parts.push(memoryContext);
+    if (sessionContext) parts.push(sessionContext);
+    if (base) parts.push(base);
+    return parts.join('\n\n');
   }
 
   // Build initial messages
@@ -275,8 +297,8 @@ export async function agenticChat(
     const history = options.sessionManager.getHistory(20);
     if (options.systemPrompt && !history.some((m) => m.role === 'system')) {
       messages.push({ role: 'system', content: buildSystemPrompt(options.systemPrompt) });
-    } else if (repoMapText && !history.some((m) => m.role === 'system')) {
-      messages.push({ role: 'system', content: repoMapText });
+    } else if ((repoMapText || memoryContext) && !history.some((m) => m.role === 'system')) {
+      messages.push({ role: 'system', content: buildSystemPrompt() });
     }
     messages.push(
       ...history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as path from 'path';
 import * as os from 'os';
+import * as fs from 'fs';
 import { MemoryManager, getMemoryManager, resetMemoryManager } from '../memory.js';
 
 // Mock fs module for testing
@@ -289,7 +290,7 @@ describe('MemoryManager', () => {
 
       const context = manager.getContextString();
 
-      expect(context).toContain('User memories:');
+      expect(context).toContain('## General');
       expect(context).toContain('- User prefers TypeScript');
       expect(context).toContain('- Project uses 2-space indentation');
     });
@@ -375,7 +376,7 @@ describe('MemoryManager', () => {
       const json = manager.exportToJson();
       const parsed = JSON.parse(json);
 
-      expect(parsed.version).toBe(1);
+      expect(parsed.version).toBe(2);
       expect(parsed.memories).toHaveLength(2);
       expect(parsed.memories[0].content).toBeDefined();
     });
@@ -418,6 +419,484 @@ describe('MemoryManager', () => {
 
       // Should have pruned some memories
       expect(manager.getAll().length).toBeLessThanOrEqual(5);
+    });
+  });
+
+  describe('recall', () => {
+    it('should increment accessCount from 0 to 1 on first recall', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      const entry = manager.add('Recall test');
+      expect(entry.accessCount).toBe(0);
+
+      const recalled = manager.recall(entry.id);
+
+      expect(recalled).not.toBeNull();
+      expect(recalled!.accessCount).toBe(1);
+    });
+
+    it('should increment accessCount on each subsequent recall', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      const entry = manager.add('Recall multiple');
+
+      manager.recall(entry.id);
+      manager.recall(entry.id);
+      const recalled = manager.recall(entry.id);
+
+      expect(recalled!.accessCount).toBe(3);
+    });
+
+    it('should set accessedAt timestamp', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      const entry = manager.add('Recall timestamp');
+      expect(entry.accessedAt).toBeUndefined();
+
+      const before = Date.now();
+      const recalled = manager.recall(entry.id);
+      const after = Date.now();
+
+      expect(recalled!.accessedAt).toBeDefined();
+      expect(recalled!.accessedAt).toBeGreaterThanOrEqual(before);
+      expect(recalled!.accessedAt).toBeLessThanOrEqual(after);
+    });
+
+    it('should return null for non-existent ID', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+
+      const result = manager.recall('non-existent-id');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('markOutdated', () => {
+    it('should set status to outdated', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      const entry = manager.add('Will be outdated');
+
+      const result = manager.markOutdated(entry.id);
+
+      expect(result).not.toBeNull();
+      expect(result!.status).toBe('outdated');
+    });
+
+    it('should update the updated timestamp', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      const entry = manager.add('Will be outdated');
+      const originalUpdated = entry.updated;
+
+      // Small delay so timestamp differs
+      const before = Date.now();
+      const result = manager.markOutdated(entry.id);
+
+      expect(result!.updated).toBeGreaterThanOrEqual(before);
+      expect(result!.updated).toBeGreaterThanOrEqual(originalUpdated);
+    });
+
+    it('should return null for non-existent ID', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+
+      const result = manager.markOutdated('non-existent-id');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('promoteToCanonical', () => {
+    it('should set status to canonical', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      const entry = manager.add('Will be canonical');
+
+      const result = manager.promoteToCanonical(entry.id);
+
+      expect(result).not.toBeNull();
+      expect(result!.status).toBe('canonical');
+    });
+
+    it('should update the updated timestamp', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      const entry = manager.add('Will be canonical');
+      const originalUpdated = entry.updated;
+
+      const before = Date.now();
+      const result = manager.promoteToCanonical(entry.id);
+
+      expect(result!.updated).toBeGreaterThanOrEqual(before);
+      expect(result!.updated).toBeGreaterThanOrEqual(originalUpdated);
+    });
+
+    it('should return null for non-existent ID', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+
+      const result = manager.promoteToCanonical('non-existent-id');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('search with type and status filters', () => {
+    it('should filter by type option', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      manager.add('Semantic fact', { type: 'semantic' });
+      manager.add('Procedure step', { type: 'procedural' });
+      manager.add('Another fact', { type: 'semantic' });
+
+      const results = manager.search({ type: 'semantic' });
+
+      expect(results).toHaveLength(2);
+      expect(results.every((r) => r.type === 'semantic')).toBe(true);
+    });
+
+    it('should filter by status option', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      manager.add('Active memory');
+      const entry2 = manager.add('Will be outdated');
+      manager.add('Another active');
+      manager.markOutdated(entry2.id);
+
+      const results = manager.search({ status: 'active' });
+
+      expect(results).toHaveLength(2);
+      expect(results.every((r) => r.status === 'active')).toBe(true);
+    });
+
+    it('should combine type and status filters', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      manager.add('Active semantic', { type: 'semantic' });
+      const entry2 = manager.add('Outdated semantic', { type: 'semantic' });
+      manager.add('Active procedural', { type: 'procedural' });
+      manager.markOutdated(entry2.id);
+
+      const results = manager.search({ type: 'semantic', status: 'active' });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].content).toBe('Active semantic');
+    });
+
+    it('should combine query with type filter', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      manager.add('TypeScript is typed', { type: 'semantic' });
+      manager.add('TypeScript procedure', { type: 'procedural' });
+      manager.add('Python is dynamic', { type: 'semantic' });
+
+      const results = manager.search({ query: 'TypeScript', type: 'semantic' });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].content).toBe('TypeScript is typed');
+    });
+  });
+
+  describe('getContextString — type-based grouping', () => {
+    it('should group semantic memories under Decisions & Facts header', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      manager.add('Semantic fact one', { type: 'semantic' });
+
+      const context = manager.getContextString();
+
+      expect(context).toContain('## Decisions & Facts');
+      expect(context).toContain('- Semantic fact one');
+    });
+
+    it('should group procedural memories under Procedures header', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      manager.add('How to deploy', { type: 'procedural' });
+
+      const context = manager.getContextString();
+
+      expect(context).toContain('## Procedures');
+      expect(context).toContain('- How to deploy');
+    });
+
+    it('should group episodic memories under Recent Events header', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      manager.add('Deployment happened yesterday', { type: 'episodic' });
+
+      const context = manager.getContextString();
+
+      expect(context).toContain('## Recent Events');
+      expect(context).toContain('- Deployment happened yesterday');
+    });
+
+    it('should group working memories under Current Context header', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      manager.add('Currently refactoring auth', { type: 'working' });
+
+      const context = manager.getContextString();
+
+      expect(context).toContain('## Current Context');
+      expect(context).toContain('- Currently refactoring auth');
+    });
+
+    it('should put untyped memories under General header', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      manager.add('Some general note');
+
+      const context = manager.getContextString();
+
+      expect(context).toContain('## General');
+      expect(context).toContain('- Some general note');
+    });
+
+    it('should render groups in order: semantic → procedural → episodic → working → general', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      // Add in reverse order to verify ordering is by type, not insertion
+      manager.add('General note');
+      manager.add('Working item', { type: 'working' });
+      manager.add('Episodic event', { type: 'episodic' });
+      manager.add('Procedure step', { type: 'procedural' });
+      manager.add('Semantic fact', { type: 'semantic' });
+
+      const context = manager.getContextString();
+
+      const semanticIdx = context.indexOf('## Decisions & Facts');
+      const proceduralIdx = context.indexOf('## Procedures');
+      const episodicIdx = context.indexOf('## Recent Events');
+      const workingIdx = context.indexOf('## Current Context');
+      const generalIdx = context.indexOf('## General');
+
+      expect(semanticIdx).toBeGreaterThanOrEqual(0);
+      expect(proceduralIdx).toBeGreaterThan(semanticIdx);
+      expect(episodicIdx).toBeGreaterThan(proceduralIdx);
+      expect(workingIdx).toBeGreaterThan(episodicIdx);
+      expect(generalIdx).toBeGreaterThan(workingIdx);
+    });
+
+    it('should exclude outdated memories from context', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      const entry = manager.add('Outdated info', { type: 'semantic' });
+      manager.add('Fresh info', { type: 'semantic' });
+      manager.markOutdated(entry.id);
+
+      const context = manager.getContextString();
+
+      expect(context).not.toContain('Outdated info');
+      expect(context).toContain('Fresh info');
+    });
+
+    it('should exclude superseded memories from context', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      manager.add('Current info', { type: 'semantic' });
+      // Manually set a memory as superseded via direct manipulation
+      const superseded = manager.add('Old info', { type: 'semantic' });
+      // Use update workaround: access internal state through the returned entry
+      const retrieved = manager.get(superseded.id);
+      if (retrieved) {
+        retrieved.status = 'superseded';
+      }
+
+      const context = manager.getContextString();
+
+      expect(context).not.toContain('Old info');
+      expect(context).toContain('Current info');
+    });
+
+    it('should boost canonical memories to top within their group', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      // Add non-canonical first with same priority
+      manager.add('Regular fact', { type: 'semantic', priority: 5 });
+      const canonical = manager.add('Canonical fact', { type: 'semantic', priority: 5 });
+      manager.promoteToCanonical(canonical.id);
+
+      const context = manager.getContextString();
+      const lines = context.split('\n').filter((line) => line.startsWith('- '));
+
+      // Canonical should appear before regular within the same group
+      const canonicalIdx = lines.findIndex((l) => l.includes('Canonical fact'));
+      const regularIdx = lines.findIndex((l) => l.includes('Regular fact'));
+      expect(canonicalIdx).toBeLessThan(regularIdx);
+    });
+  });
+
+  describe('getStats — byType and byStatus', () => {
+    it('should count memories by type', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      manager.add('Semantic 1', { type: 'semantic' });
+      manager.add('Semantic 2', { type: 'semantic' });
+      manager.add('Procedural 1', { type: 'procedural' });
+      manager.add('Episodic 1', { type: 'episodic' });
+      manager.add('Working 1', { type: 'working' });
+      manager.add('Untyped 1');
+
+      const stats = manager.getStats();
+
+      expect(stats.byType['semantic']).toBe(2);
+      expect(stats.byType['procedural']).toBe(1);
+      expect(stats.byType['episodic']).toBe(1);
+      expect(stats.byType['working']).toBe(1);
+      expect(stats.byType['untyped']).toBe(1);
+    });
+
+    it('should count memories by status', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      manager.add('Active 1');
+      manager.add('Active 2');
+      const outdated = manager.add('Will be outdated');
+      const canonical = manager.add('Will be canonical');
+      manager.markOutdated(outdated.id);
+      manager.promoteToCanonical(canonical.id);
+
+      const stats = manager.getStats();
+
+      expect(stats.byStatus['active']).toBe(2);
+      expect(stats.byStatus['outdated']).toBe(1);
+      expect(stats.byStatus['canonical']).toBe(1);
+    });
+  });
+
+  describe('add with new typed fields', () => {
+    it('should set default status to active when not specified', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+
+      const entry = manager.add('Default status test');
+
+      expect(entry.status).toBe('active');
+    });
+
+    it('should set default accessCount to 0', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+
+      const entry = manager.add('Default accessCount test');
+
+      expect(entry.accessCount).toBe(0);
+    });
+
+    it('should accept and store type, status, and context fields', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+
+      const entry = manager.add('Typed memory', {
+        type: 'semantic',
+        status: 'canonical',
+        context: 'project-alpha',
+      });
+
+      expect(entry.type).toBe('semantic');
+      expect(entry.status).toBe('canonical');
+      expect(entry.context).toBe('project-alpha');
+    });
+  });
+
+  describe('list', () => {
+    it('should return same result as getAll', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      manager.add('Memory A');
+      manager.add('Memory B');
+      manager.add('Memory C');
+
+      const listResult = manager.list();
+      const getAllResult = manager.getAll();
+
+      expect(listResult).toEqual(getAllResult);
+    });
+  });
+
+  describe('importMemory', () => {
+    it('should import a memory with preserved ID', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      const now = Date.now();
+      const entry = {
+        id: 'preserved-id-123',
+        content: 'Imported memory content',
+        created: now,
+        updated: now,
+        tags: ['imported'],
+        priority: 3,
+        status: 'active' as const,
+        accessCount: 0,
+      };
+
+      manager.importMemory(entry);
+
+      expect(manager.getAll()).toHaveLength(1);
+      expect(manager.getAll()[0].id).toBe('preserved-id-123');
+    });
+
+    it('should be retrievable by the preserved ID after import', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      const now = Date.now();
+      const entry = {
+        id: 'custom-id-456',
+        content: 'Retrievable import',
+        created: now,
+        updated: now,
+        priority: 0,
+        status: 'active' as const,
+        accessCount: 0,
+      };
+
+      manager.importMemory(entry);
+      const retrieved = manager.get('custom-id-456');
+
+      expect(retrieved).toBeDefined();
+      expect(retrieved!.content).toBe('Retrievable import');
+      expect(retrieved!.id).toBe('custom-id-456');
+    });
+  });
+
+  describe('importFromFile', () => {
+    it('should import memories from a JSON file', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      const fileData = JSON.stringify({
+        memories: [
+          { content: 'Imported one', tags: ['tag1'], type: 'semantic' },
+          { content: 'Imported two', tags: ['tag2'] },
+        ],
+      });
+      vi.mocked(fs.readFileSync).mockReturnValueOnce(fileData);
+
+      const count = manager.importFromFile('/fake/path/memories.json');
+
+      expect(count).toBe(2);
+      expect(manager.getAll()).toHaveLength(2);
+    });
+
+    it('should return 0 for invalid file paths', () => {
+      const manager = new MemoryManager({ dataDir: testDir });
+      vi.mocked(fs.readFileSync).mockImplementationOnce(() => {
+        throw new Error('ENOENT: no such file or directory');
+      });
+
+      const count = manager.importFromFile('/nonexistent/path.json');
+
+      expect(count).toBe(0);
+    });
+  });
+
+  describe('v1 to v2 backward compatibility in loadMemories', () => {
+    it('should set accessCount to 0 and status to active for v1 format entries', () => {
+      const v1Data = JSON.stringify({
+        memories: [
+          {
+            id: 'v1-entry-1',
+            content: 'Old v1 memory',
+            created: 1700000000000,
+            updated: 1700000000000,
+            tags: ['legacy'],
+            priority: 1,
+          },
+          {
+            id: 'v1-entry-2',
+            content: 'Another v1 memory',
+            created: 1700000001000,
+            updated: 1700000001000,
+          },
+        ],
+      });
+
+      // Mock existsSync to return true so loadMemories reads the file
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(v1Data);
+
+      const manager = new MemoryManager({ dataDir: testDir });
+
+      const entry1 = manager.get('v1-entry-1');
+      const entry2 = manager.get('v1-entry-2');
+
+      expect(entry1).toBeDefined();
+      expect(entry1!.accessCount).toBe(0);
+      expect(entry1!.status).toBe('active');
+
+      expect(entry2).toBeDefined();
+      expect(entry2!.accessCount).toBe(0);
+      expect(entry2!.status).toBe('active');
     });
   });
 });

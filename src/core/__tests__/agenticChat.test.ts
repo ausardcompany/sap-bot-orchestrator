@@ -5,6 +5,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { CompletionResult } from '../../providers/sapOrchestration.js';
 
+// Mock memory module (dynamic import)
+vi.mock('../memory.js', () => ({
+  getMemoryManager: vi.fn(() => ({
+    getContextString: vi.fn().mockReturnValue(''),
+  })),
+}));
+
+// Mock session context module (dynamic import)
+vi.mock('../sessionContext.js', () => ({
+  getSessionContextString: vi.fn().mockReturnValue(''),
+}));
+
 // Mock the providers module
 vi.mock('../../providers/index.js', () => ({
   getProviderForModel: vi.fn(),
@@ -45,6 +57,8 @@ vi.mock('../../tool/tools/index.js', () => ({
 
 import { agenticChat } from '../agenticChat.js';
 import { getProviderForModel } from '../../providers/index.js';
+import { getMemoryManager } from '../memory.js';
+import { getSessionContextString } from '../sessionContext.js';
 
 describe('agenticChat', () => {
   let mockProvider: {
@@ -490,6 +504,157 @@ describe('agenticChat', () => {
 
       expect(options.tools).toHaveLength(1);
       expect(options.tools[0].function.name).toBe('read');
+    });
+  });
+
+  describe('system prompt context injection', () => {
+    beforeEach(() => {
+      // Reset context mocks to return empty by default
+      vi.mocked(getMemoryManager).mockReturnValue({
+        getContextString: vi.fn().mockReturnValue(''),
+      } as any);
+      vi.mocked(getSessionContextString).mockReturnValue('');
+
+      mockProvider.complete.mockResolvedValue({
+        text: 'Response',
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      });
+    });
+
+    describe('memory context injection', () => {
+      it('should include memory context in the system message when non-empty', async () => {
+        vi.mocked(getMemoryManager).mockReturnValue({
+          getContextString: vi.fn().mockReturnValue('## Decisions & Facts\n- Use TypeScript'),
+        } as any);
+
+        await agenticChat('Test message');
+
+        const messages = mockProvider.complete.mock.calls[0][0];
+        expect(messages[0].role).toBe('system');
+        expect(messages[0].content).toContain('## Decisions & Facts\n- Use TypeScript');
+      });
+    });
+
+    describe('session context injection', () => {
+      it('should include session context in the system message when non-empty', async () => {
+        vi.mocked(getSessionContextString).mockReturnValue(
+          '## Recent Session Context\n### Session: "Fix bugs" (2025-01-01)\n- Working on: fixing tests'
+        );
+
+        await agenticChat('Test message');
+
+        const messages = mockProvider.complete.mock.calls[0][0];
+        expect(messages[0].role).toBe('system');
+        expect(messages[0].content).toContain('## Recent Session Context');
+        expect(messages[0].content).toContain('Fix bugs');
+      });
+    });
+
+    describe('both contexts combined', () => {
+      it('should include both memory and session context with correct ordering', async () => {
+        const memoryText = '## Decisions & Facts\n- Use TypeScript';
+        const sessionText = '## Recent Session Context\n### Session: "Refactor" (2025-06-01)';
+
+        vi.mocked(getMemoryManager).mockReturnValue({
+          getContextString: vi.fn().mockReturnValue(memoryText),
+        } as any);
+        vi.mocked(getSessionContextString).mockReturnValue(sessionText);
+
+        await agenticChat('Test message');
+
+        const messages = mockProvider.complete.mock.calls[0][0];
+        const systemContent = messages[0].content as string;
+
+        expect(systemContent).toContain(memoryText);
+        expect(systemContent).toContain(sessionText);
+
+        // Memory context should appear before session context
+        const memoryIndex = systemContent.indexOf(memoryText);
+        const sessionIndex = systemContent.indexOf(sessionText);
+        expect(memoryIndex).toBeLessThan(sessionIndex);
+      });
+    });
+
+    describe('system prompt with contexts', () => {
+      it('should include systemPrompt after contexts in the system message', async () => {
+        const memoryText = '## Decisions & Facts\n- Prefer functional style';
+        const sessionText = '## Recent Session Context\n### Session: "Init" (2025-03-01)';
+        const systemPromptText = 'You are a helpful assistant.';
+
+        vi.mocked(getMemoryManager).mockReturnValue({
+          getContextString: vi.fn().mockReturnValue(memoryText),
+        } as any);
+        vi.mocked(getSessionContextString).mockReturnValue(sessionText);
+
+        await agenticChat('Test message', { systemPrompt: systemPromptText });
+
+        const messages = mockProvider.complete.mock.calls[0][0];
+        const systemContent = messages[0].content as string;
+
+        expect(systemContent).toContain(memoryText);
+        expect(systemContent).toContain(sessionText);
+        expect(systemContent).toContain(systemPromptText);
+
+        // Ordering: memory < session < systemPrompt
+        const memoryIndex = systemContent.indexOf(memoryText);
+        const sessionIndex = systemContent.indexOf(sessionText);
+        const systemPromptIndex = systemContent.indexOf(systemPromptText);
+        expect(memoryIndex).toBeLessThan(sessionIndex);
+        expect(sessionIndex).toBeLessThan(systemPromptIndex);
+      });
+    });
+
+    describe('no context', () => {
+      it('should not include a system message when all contexts are empty and no systemPrompt', async () => {
+        vi.mocked(getMemoryManager).mockReturnValue({
+          getContextString: vi.fn().mockReturnValue(''),
+        } as any);
+        vi.mocked(getSessionContextString).mockReturnValue('');
+
+        await agenticChat('Test message');
+
+        const messages = mockProvider.complete.mock.calls[0][0];
+        const systemMessages = messages.filter((m: { role: string }) => m.role === 'system');
+        expect(systemMessages).toHaveLength(0);
+      });
+    });
+
+    describe('context failure resilience', () => {
+      it('should succeed when memory module throws', async () => {
+        vi.mocked(getMemoryManager).mockImplementation(() => {
+          throw new Error('Memory unavailable');
+        });
+
+        const result = await agenticChat('Test message');
+
+        expect(result.text).toBe('Response');
+        expect(result.iterations).toBe(1);
+      });
+
+      it('should succeed when session context module throws', async () => {
+        vi.mocked(getSessionContextString).mockImplementation(() => {
+          throw new Error('Session context unavailable');
+        });
+
+        const result = await agenticChat('Test message');
+
+        expect(result.text).toBe('Response');
+        expect(result.iterations).toBe(1);
+      });
+
+      it('should succeed when both modules throw', async () => {
+        vi.mocked(getMemoryManager).mockImplementation(() => {
+          throw new Error('Memory unavailable');
+        });
+        vi.mocked(getSessionContextString).mockImplementation(() => {
+          throw new Error('Session context unavailable');
+        });
+
+        const result = await agenticChat('Test message');
+
+        expect(result.text).toBe('Response');
+        expect(result.iterations).toBe(1);
+      });
     });
   });
 });

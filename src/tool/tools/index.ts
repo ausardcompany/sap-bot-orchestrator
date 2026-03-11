@@ -26,6 +26,7 @@ import { browserTool } from './browser.js';
 import { diagnosticsTool } from './diagnostics.js';
 import { codesearchTool } from './codesearch.js';
 import { batchTool } from './batch.js';
+import { storeMemoryTool, recallMemoryTool } from './memory.js';
 
 // All built-in tools
 export const builtInTools = [
@@ -51,6 +52,8 @@ export const builtInTools = [
   diagnosticsTool,
   codesearchTool,
   batchTool,
+  storeMemoryTool,
+  recallMemoryTool,
 ] as const;
 
 /**
@@ -87,6 +90,8 @@ export {
   diagnosticsTool,
   codesearchTool,
   batchTool,
+  storeMemoryTool,
+  recallMemoryTool,
 };
 
 // Re-export UI utilities from specific tools

@@ -1653,12 +1653,21 @@ export async function startInteractive(options: InteractiveOptions = {}): Promis
         }
       }, 80);
 
+      // Build effective system prompt with memory context
+      let effectiveSystemPrompt = state.systemPrompt;
+      const memoryContext = getMemoryManager().getContextString();
+      if (memoryContext) {
+        effectiveSystemPrompt = effectiveSystemPrompt
+          ? `${memoryContext}\n\n${effectiveSystemPrompt}`
+          : memoryContext;
+      }
+
       const generator = streamChat(input, {
         modelOverride: state.autoRoute ? undefined : state.currentModel,
         autoRoute: state.autoRoute,
         preferCheap: state.preferCheap,
         sessionManager: state.sessionManager,
-        systemPrompt: state.systemPrompt,
+        systemPrompt: effectiveSystemPrompt,
         signal: state.abortController.signal,
       });
 
