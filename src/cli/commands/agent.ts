@@ -218,7 +218,26 @@ export function registerAgentCommand(program: Command): void {
           }
         }
       } catch (e) {
-        console.error(String(e));
+        // Log full error details for debugging (especially API errors)
+        if (e instanceof Error) {
+          console.error(`Error: ${e.message}`);
+          if ('cause' in e && e.cause) {
+            console.error(`Cause: ${e.cause instanceof Error ? e.cause.message : String(e.cause)}`);
+          }
+          // SAP SDK errors may include response details
+          const errAny = e as unknown as Record<string, unknown>;
+          if (errAny['response']) {
+            const resp = errAny['response'] as Record<string, unknown>;
+            console.error(
+              `API Response: status=${resp['status']}, data=${JSON.stringify(resp['data'] ?? resp['body'] ?? '', null, 2)}`
+            );
+          }
+          if (errAny['rootCause']) {
+            console.error(`Root cause: ${String(errAny['rootCause'])}`);
+          }
+        } else {
+          console.error(String(e));
+        }
         process.exit(1);
       }
     });
