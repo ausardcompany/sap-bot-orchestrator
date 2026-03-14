@@ -33,8 +33,8 @@ jobs:
 
       - name: Ensure version tag exists
         run: |
-          TAG="${​{ steps.meta.outputs.tag }}"
-          SHA="${​{ steps.meta.outputs.sha }}"
+          TAG="${{ steps.meta.outputs.tag }}"
+          SHA="${{ steps.meta.outputs.sha }}"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists"
           else
@@ -53,8 +53,8 @@ jobs:
       - name: Update Formula revision
         run: |
           FORMULA="homebrew-tap/Formula/alexi.rb"
-          TAG="${​{ steps.meta.outputs.tag }}"
-          SHA="${​{ steps.meta.outputs.sha }}"
+          TAG="${{ steps.meta.outputs.tag }}"
+          SHA="${{ steps.meta.outputs.sha }}"
 
           # Update tag and revision in the formula
           sed -i "s|tag:      \"v[^\"]*\"|tag:      \"$TAG\"|g" "$FORMULA"
