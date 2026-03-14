@@ -31,16 +31,18 @@ const DEFAULT_TIMEOUT = 120000; // 2 minutes
 function processCarriageReturns(output: string): string {
   // Split by lines, handling both \r\n and \n
   const lines = output.split(/\r?\n/);
-  
-  return lines.map(line => {
-    // Handle carriage returns within a line (progress indicators)
-    if (line.includes("\r")) {
-      const parts = line.split("\r");
-      // Return the last part (most recent overwrite)
-      return parts[parts.length - 1];
-    }
-    return line;
-  }).join("\n");
+
+  return lines
+    .map((line) => {
+      // Handle carriage returns within a line (progress indicators)
+      if (line.includes('\r')) {
+        const parts = line.split('\r');
+        // Return the last part (most recent overwrite)
+        return parts[parts.length - 1];
+      }
+      return line;
+    })
+    .join('\n');
 }
 
 export const bashTool = defineTool<typeof BashParamsSchema, BashResult>({
