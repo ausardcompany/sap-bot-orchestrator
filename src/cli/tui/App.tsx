@@ -6,6 +6,7 @@ import { SessionProvider, useSession } from './context/SessionContext.js';
 import { ChatProvider, useChat } from './context/ChatContext.js';
 import { KeybindProvider, useKeybind } from './context/KeybindContext.js';
 import { DialogProvider, useDialog } from './context/DialogContext.js';
+import { AttachmentProvider } from './context/AttachmentContext.js';
 import { useStreamChat } from './hooks/useStreamChat.js';
 import { usePermission } from './hooks/usePermission.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
@@ -212,11 +213,13 @@ export function App({ model, autoRoute, sessionId }: AppProps): React.JSX.Elemen
         sessionId={resolvedSessionId}
       >
         <ChatProvider>
-          <KeybindProvider>
-            <DialogProvider>
-              <AppLayout />
-            </DialogProvider>
-          </KeybindProvider>
+          <AttachmentProvider>
+            <KeybindProvider>
+              <DialogProvider>
+                <AppLayout />
+              </DialogProvider>
+            </KeybindProvider>
+          </AttachmentProvider>
         </ChatProvider>
       </SessionProvider>
     </ThemeProvider>
