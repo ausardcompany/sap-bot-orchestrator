@@ -230,6 +230,15 @@ All file operation tools have comprehensive test coverage:
 | `glob` | `tests/tool/tools/glob.test.ts` | 16+ cases |
 | `grep` | `tests/tool/tools/grep.test.ts` | 20+ cases |
 
+### TUI Component Test Coverage
+
+TUI components are tested using ink-testing-library:
+
+| Component | Test File | Test Cases |
+|-----------|-----------|------------|
+| `InputBox` | `tests/cli/tui/InputBox.test.tsx` | 10+ cases |
+| Clipboard | `tests/clipboard.test.ts` | 8+ cases |
+
 ### Test Categories
 
 Each tool is tested across multiple categories:
@@ -473,6 +482,170 @@ describe('tool metadata', () => {
   });
 });
 ```
+
+## Testing TUI Components
+
+### TUI Testing Strategy
+
+TUI components are tested using `ink-testing-library`, which provides utilities for testing Ink components in isolation.
+
+```mermaid
+graph LR
+    subgraph TUI Test Setup
+        Mock[Mock Dependencies]
+        Render[Render Component]
+        Wrapper[ThemeProvider Wrapper]
+    end
+    
+    subgraph Test Execution
+        Interact[Simulate User Input]
+        Verify[Verify Output]
+        Snapshot[Check lastFrame]
+    end
+    
+    Mock --> Wrapper
+    Wrapper --> Render
+    Render --> Interact
+    Interact --> Verify
+    Verify --> Snapshot
+    
+    style Render fill:#4CAF50
+    style Verify fill:#2196F3
+```
+
+### Example: Testing InputBox Component
+
+```typescript
+import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
+import { render } from 'ink-testing-library';
+import { InputBox } from '../../../src/cli/tui/components/InputBox.js';
+import { ThemeProvider } from '../../../src/cli/tui/context/ThemeContext.js';
+
+// Mock hooks that require context
+vi.mock('../../../src/cli/tui/hooks/useClipboardImage.js', () => ({
+  useClipboardImage: vi.fn(),
+}));
+
+vi.mock('../../../src/cli/tui/context/AttachmentContext.js', () => ({
+  useAttachments: () => ({
+    pending: [],
+    clearAll: vi.fn(),
+  }),
+}));
+
+function Wrapper({ children }: { children: React.ReactNode }) {
+  return <ThemeProvider>{children}</ThemeProvider>;
+}
+
+describe('InputBox', () => {
+  it('renders agent name and prompt symbol', () => {
+    const { lastFrame } = render(
+      <Wrapper>
+        <InputBox
+          agent="code"
+          agentColor="green"
+          disabled={false}
+          onSubmit={vi.fn()}
+          isFocused={true}
+        />
+      </Wrapper>
+    );
+    expect(lastFrame()).toContain('code');
+    expect(lastFrame()).toContain('❯');
+  });
+
+  it('shows autocomplete when typing slash', () => {
+    const commands = [
+      { name: 'help', description: 'Show help', category: 'general', execute: async () => true }
+    ];
+    const { lastFrame } = render(
+      <Wrapper>
+        <InputBox
+          agent="code"
+          agentColor="green"
+          disabled={false}
+          onSubmit={vi.fn()}
+          isFocused={true}
+          commands={commands}
+        />
+      </Wrapper>
+    );
+    // Autocomplete list should be rendered when commands are provided
+  });
+});
+```
+
+### Testing Clipboard Functionality
+
+Clipboard tests mock platform-specific tools:
+
+```typescript
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { _resetClipboardCache } from '../src/utils/clipboard.js';
+
+// Mock child_process
+vi.mock('node:child_process', () => ({
+  execFile: vi.fn(),
+}));
+
+import { execFile } from 'node:child_process';
+const mockExecFile = vi.mocked(execFile);
+
+describe('clipboard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    _resetClipboardCache();
+  });
+
+  it('should detect pngpaste on macOS', async () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
+    
+    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+      const callback = typeof opts === 'function' ? opts : cb;
+      if (cmd === 'which' && args[0] === 'pngpaste') {
+        callback(null, { stdout: '/usr/local/bin/pngpaste', stderr: '' });
+      }
+      return undefined;
+    });
+
+    const { detectClipboard } = await import('../src/utils/clipboard.js');
+    const result = await detectClipboard();
+    
+    expect(result.available).toBe(true);
+    expect(result.tool).toBe('pngpaste');
+  });
+
+  it('should fall back to osascript when pngpaste is missing', async () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
+    
+    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+      const callback = typeof opts === 'function' ? opts : cb;
+      if (cmd === 'which' && args[0] === 'osascript') {
+        callback(null, { stdout: '/usr/bin/osascript', stderr: '' });
+      } else {
+        callback(new Error('not found'), null);
+      }
+      return undefined;
+    });
+
+    const { detectClipboard } = await import('../src/utils/clipboard.js');
+    _resetClipboardCache();
+    const result = await detectClipboard();
+    
+    expect(result.available).toBe(true);
+    expect(result.tool).toBe('osascript');
+  });
+});
+```
+
+### TUI Test Best Practices
+
+1. **Mock Context Dependencies**: Always mock hooks that require React Context
+2. **Use Wrapper Components**: Wrap components in necessary providers (ThemeProvider, etc.)
+3. **Test Visual Output**: Use `lastFrame()` to verify rendered output
+4. **Test User Interactions**: Simulate keyboard input and verify behavior
+5. **Test Conditional Rendering**: Verify components render correctly in different states
 
 ## Testing with SAP AI Core
 

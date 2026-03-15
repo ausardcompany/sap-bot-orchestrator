@@ -197,6 +197,96 @@ alexi session-delete -s <session-id>
 |--------|------|-------------|
 | `-s, --session <id>` | string | Session ID to delete (required) |
 
+### interactive
+
+Start interactive TUI mode with streaming responses and slash commands.
+
+```bash
+alexi interactive [options]
+alexi i [options]  # Shorthand alias
+```
+
+#### Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--model <id>` | string | Override model selection |
+| `--auto-route` | boolean | Enable automatic model routing |
+| `--session <id>` | string | Continue existing session |
+| `--system <prompt>` | string | System prompt for conversation |
+
+#### Interactive Mode Features
+
+The TUI provides:
+- Real-time streaming responses
+- Slash command autocomplete
+- Image paste from clipboard (Ctrl+V)
+- Keyboard shortcuts for navigation
+- Multi-agent switching (Tab/Shift+Tab)
+- Command palette (Ctrl+K)
+- Session management
+- Tool execution visualization
+
+#### Slash Commands
+
+| Command | Aliases | Description |
+|---------|---------|-------------|
+| `/help` | `/h` | Show available commands |
+| `/exit` | `/quit`, `/q` | Exit the TUI |
+| `/clear` | - | Clear messages |
+| `/model [id]` | - | Show or switch model |
+| `/agent [name]` | - | Show or switch agent |
+| `/status` | - | Show session status |
+| `/sessions` | - | Open session list |
+| `/mcp` | - | Manage MCP servers |
+| `/theme [dark\|light]` | - | Switch theme |
+| `/image [path]` | `/img` | Attach image from clipboard or file |
+| `/clear-images` | `/cli` | Remove all pending images |
+
+#### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| Tab | Cycle agents forward |
+| Shift+Tab | Cycle agents backward |
+| Ctrl+X | Activate leader mode |
+| Ctrl+K | Open command palette |
+| Ctrl+L | Clear messages |
+| Ctrl+C | Abort streaming / Exit |
+| Ctrl+V | Paste image from clipboard |
+| Escape | Dismiss autocomplete / Clear attachments |
+
+#### Clipboard Image Support
+
+The interactive mode supports pasting images from the system clipboard:
+
+**macOS**:
+- Requires `pngpaste` (install with `brew install pngpaste`)
+- Falls back to built-in `osascript` if pngpaste not available
+
+**Linux**:
+- Wayland: requires `wl-clipboard` (install with `apt install wl-clipboard`)
+- X11: requires `xclip` (install with `apt install xclip`)
+
+**Windows**:
+- Uses built-in PowerShell (no additional dependencies)
+
+#### Example Session
+
+```bash
+# Start interactive mode
+alexi interactive --auto-route
+
+# In the TUI:
+# - Type "/" to see autocomplete suggestions
+# - Type "/help" and press Enter for command list
+# - Press Ctrl+V to paste an image from clipboard
+# - Type a message and press Enter to send
+# - Press Tab to switch agents
+# - Press Ctrl+K to open command palette
+# - Press Ctrl+C to exit
+```
+
 ## Environment Variables
 
 ### Required Variables

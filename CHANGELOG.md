@@ -11,14 +11,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Slash commands (`/help`, `/model`, `/exit`, etc.) were leaking directly to the LLM in the TUI instead of being intercepted by the command handler
-- Command Palette (`Ctrl+K`) was opening with an empty command list
+- Slash commands were leaking directly to the LLM in the TUI instead of being intercepted by the command handler
+- Command Palette was opening with an empty command list
+- Clipboard image paste on macOS was failing when pngpaste was not installed
 
 ### Added
 
-- Inline autocomplete for slash commands in the TUI input box — shows filtered suggestions when typing `/`
-- Keyboard navigation (Up/Down/Tab) and acceptance (Enter/Tab) for autocomplete suggestions
-- Command Palette now displays all 11 registered slash commands
+- Inline autocomplete for slash commands in the TUI input box with filtered suggestions when typing forward slash
+- Keyboard navigation for autocomplete suggestions using Up/Down/Tab keys
+- Enter or Tab key acceptance for autocomplete suggestions
+- Command Palette now displays all 11 registered slash commands with proper metadata
+- osascript fallback for clipboard image paste on macOS when pngpaste is not available
+- File-based clipboard reading via AppleScript for macOS systems without external dependencies
+- Comprehensive test coverage for clipboard detection and osascript fallback
+
+### Changed
+
+- TUI slash command interception now occurs in App.tsx handleSubmit before sending to LLM
+- useCommands hook now provides full command list to InputBox and useKeyboard for display
+- Clipboard detection on macOS now tries pngpaste first, then falls back to osascript
+- readClipboardImage function now handles osascript separately with temporary file flow
 
 ## [0.2.0] - 2026-03-14
 

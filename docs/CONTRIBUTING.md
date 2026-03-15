@@ -300,11 +300,78 @@ npm test
 # Run specific test file
 npm test -- tool.test.ts
 
+# Run TUI component tests
+npm test -- tests/cli/tui/
+
+# Run clipboard tests
+npm test -- tests/clipboard.test.ts
+
 # Run with coverage
 npm test -- --coverage
 
 # Watch mode
 npm test -- --watch
+```
+
+### Testing TUI Components
+
+When testing TUI components built with Ink:
+
+```typescript
+import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
+import { render } from 'ink-testing-library';
+import { ThemeProvider } from '../../../src/cli/tui/context/ThemeContext.js';
+
+// Mock hooks that require context
+vi.mock('../../../src/cli/tui/hooks/useClipboardImage.js', () => ({
+  useClipboardImage: vi.fn(),
+}));
+
+function Wrapper({ children }: { children: React.ReactNode }) {
+  return <ThemeProvider>{children}</ThemeProvider>;
+}
+
+describe('MyComponent', () => {
+  it('renders correctly', () => {
+    const { lastFrame } = render(
+      <Wrapper>
+        <MyComponent />
+      </Wrapper>
+    );
+    expect(lastFrame()).toContain('expected output');
+  });
+});
+```
+
+### Testing Clipboard Functionality
+
+When testing clipboard features:
+
+1. Mock `node:child_process` and `node:util`
+2. Reset clipboard cache between tests using `_resetClipboardCache()`
+3. Mock platform detection with `Object.defineProperty(process, 'platform', ...)`
+4. Test all supported platforms (macOS with pngpaste, macOS with osascript, Linux, Windows)
+
+```typescript
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { _resetClipboardCache } from '../src/utils/clipboard.js';
+
+vi.mock('node:child_process', () => ({
+  execFile: vi.fn(),
+}));
+
+describe('clipboard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    _resetClipboardCache();
+  });
+
+  it('should fall back to osascript when pngpaste is missing', async () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
+    // Mock implementation...
+  });
+});
 ```
 
 ## Pull Request Process

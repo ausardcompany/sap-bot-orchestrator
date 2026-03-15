@@ -467,6 +467,217 @@ flowchart LR
     Fix --> Code
 ```
 
+## TUI Architecture
+
+Alexi includes an Ink-based Terminal User Interface (TUI) for interactive chat sessions with real-time streaming, slash command support, and inline autocomplete.
+
+### TUI Component Hierarchy
+
+```mermaid
+graph TB
+    App[App.tsx] --> ThemeProvider
+    ThemeProvider --> SessionProvider
+    SessionProvider --> ChatProvider
+    ChatProvider --> AttachmentProvider
+    AttachmentProvider --> KeybindProvider
+    KeybindProvider --> DialogProvider
+    DialogProvider --> AppLayout
+    
+    AppLayout --> Header
+    AppLayout --> MessageArea
+    AppLayout --> InputBox
+    AppLayout --> StatusBar
+    AppLayout --> DialogHost
+    
+    InputBox --> AttachmentBar
+    InputBox --> AutocompleteList
+    InputBox --> TextInput
+    
+    DialogHost --> PermissionDialog
+    DialogHost --> ModelPicker
+    DialogHost --> AgentSelector
+    DialogHost --> CommandPalette
+    
+    style App fill:#4CAF50
+    style AppLayout fill:#2196F3
+    style InputBox fill:#FF9800
+```
+
+### TUI Context System
+
+The TUI uses React Context for state management across components:
+
+| Context | Purpose | Key State |
+|---------|---------|-----------|
+| ThemeContext | Color scheme and styling | theme, setTheme |
+| SessionContext | Session metadata | model, agent, sessionId, tokenCount, cost |
+| ChatContext | Chat state and streaming | messages, isStreaming, streamingText, activeToolCalls |
+| AttachmentContext | Image attachments | pending, pasteFromClipboard, addFromFile |
+| KeybindContext | Keyboard shortcuts | leaderActive, activateLeader, deactivateLeader |
+| DialogContext | Modal dialogs | isOpen, currentType, open, close |
+
+### Slash Command System
+
+The TUI implements a declarative slash command system with autocomplete:
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant InputBox
+    participant Autocomplete
+    participant useCommands
+    participant Handler
+    participant LLM
+    
+    User->>InputBox: Types "/"
+    InputBox->>Autocomplete: Show all commands
+    User->>InputBox: Types "/he"
+    InputBox->>Autocomplete: Filter to "help"
+    User->>Autocomplete: Press Tab or Enter
+    Autocomplete->>InputBox: Accept "/help "
+    User->>InputBox: Press Enter
+    InputBox->>useCommands: handleCommand("/help")
+    useCommands->>Handler: Execute help command
+    Handler-->>InputBox: Return true (handled)
+    
+    Note over InputBox,LLM: Command intercepted, NOT sent to LLM
+```
+
+#### Autocomplete Features
+
+The InputBox component provides inline autocomplete for slash commands:
+
+1. **Trigger**: Typing forward slash shows all available commands
+2. **Filtering**: As user types, commands are filtered by name or alias
+3. **Navigation**: Up/Down arrow keys cycle through suggestions
+4. **Selection**: Tab key cycles through suggestions, Enter accepts
+5. **Display**: Shows command name, aliases, and description
+6. **Visual Feedback**: Selected suggestion is highlighted in agent color
+
+#### Command Registration
+
+Commands are registered in `useCommands.ts` with metadata:
+
+```typescript
+{
+  name: 'help',
+  aliases: ['h'],
+  description: 'Show available commands',
+  category: 'general',
+  execute: async (args, context) => {
+    // Command implementation
+    return true; // Return true if handled
+  }
+}
+```
+
+### Clipboard Integration
+
+The TUI supports clipboard image paste with platform-specific implementations:
+
+```mermaid
+flowchart TD
+    Paste[User presses Ctrl+V] --> Detect[Detect Platform]
+    Detect --> macOS{macOS?}
+    Detect --> Linux{Linux?}
+    Detect --> Windows{Windows?}
+    
+    macOS --> TryPngpaste{pngpaste available?}
+    TryPngpaste -->|Yes| UsePngpaste[Use pngpaste]
+    TryPngpaste -->|No| UseOsascript[Use osascript fallback]
+    
+    UseOsascript --> CreateTemp[Create temp file]
+    CreateTemp --> AppleScript[Run AppleScript to save clipboard]
+    AppleScript --> ReadFile[Read file]
+    ReadFile --> Cleanup[Clean up temp file]
+    Cleanup --> AddAttachment[Add to attachments]
+    
+    UsePngpaste --> AddAttachment
+    
+    Linux --> UseWlPaste[Use wl-paste or xclip]
+    UseWlPaste --> AddAttachment
+    
+    Windows --> UsePowerShell[Use PowerShell]
+    UsePowerShell --> AddAttachment
+    
+    AddAttachment --> Display[Display in AttachmentBar]
+    
+    style UseOsascript fill:#FF9800
+    style AddAttachment fill:#4CAF50
+```
+
+#### Clipboard Tool Detection
+
+The clipboard system detects available tools at runtime:
+
+**macOS**:
+1. Try `pngpaste` (preferred, requires installation)
+2. Fall back to `osascript` (built-in, no dependencies)
+
+**Linux**:
+1. Try `wl-paste` (Wayland)
+2. Fall back to `xclip` (X11)
+
+**Windows**:
+1. Use PowerShell (built-in)
+
+#### osascript Fallback
+
+When pngpaste is not available on macOS, Alexi uses AppleScript to read clipboard images:
+
+```typescript
+// AppleScript to write clipboard image to temporary file
+const script = `
+  set tmpFile to POSIX file "${tmpFile}"
+  try
+    set imgData to the clipboard as «class PNGf»
+    set fRef to open for access tmpFile with write permission
+    set eof fRef to 0
+    write imgData to fRef
+    close access fRef
+  on error errMsg
+    try
+      close access tmpFile
+    end try
+    error errMsg
+  end try
+`;
+```
+
+This approach:
+- Requires no external dependencies
+- Works on all macOS versions with osascript
+- Handles clipboard errors gracefully
+- Cleans up temporary files automatically
+
+### Keyboard Shortcuts
+
+The TUI implements vim-inspired keyboard shortcuts:
+
+| Shortcut | Action | Context |
+|----------|--------|---------|
+| Tab | Cycle agents forward | Global |
+| Shift+Tab | Cycle agents backward | Global |
+| Ctrl+X | Activate leader mode | Global |
+| Ctrl+K | Open command palette | Global |
+| Ctrl+L | Clear messages | Global |
+| Ctrl+C | Abort streaming / Exit | Global |
+| Ctrl+V | Paste image from clipboard | Input focused |
+| Escape | Dismiss autocomplete / Clear attachments | Input focused |
+| Up/Down | Navigate autocomplete or history | Input focused |
+| Enter | Accept autocomplete or submit | Input focused |
+
+#### Leader Mode
+
+Leader mode (Ctrl+X) enables secondary keybindings:
+
+| Key | Action |
+|-----|--------|
+| n | New session |
+| m | Open model picker |
+| a | Open agent selector |
+| s | Open session list |
+
 ## Future Improvements
 
 - [ ] Add more provider implementations
@@ -474,3 +685,6 @@ flowchart LR
 - [ ] Add metrics and telemetry
 - [ ] Implement caching layer
 - [ ] Add web UI option
+- [ ] TUI session persistence and restoration
+- [ ] TUI command history search (Ctrl+R)
+- [ ] TUI split panes for multi-agent workflows

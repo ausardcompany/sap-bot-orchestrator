@@ -88,8 +88,9 @@ sequenceDiagram
 2. **Code Analysis**: Generates detailed analysis including:
    - Changed file list with categorization
    - Commit history since last documentation update
-   - Code diff statistics
-   - TypeScript and configuration change previews
+   - Code diff statistics (truncated at 500 lines per file type)
+   - TypeScript, configuration, and workflow change previews
+   - Automatic detection of previous documentation commits using `[alexi-bot]` marker
 
 3. **AI-Powered Generation**: Uses Claude AI models through Alexi CLI to:
    - Analyze code changes
@@ -98,6 +99,17 @@ sequenceDiagram
    - Maintain consistent documentation style
 
 4. **Force Regeneration**: Manual trigger option to regenerate all documentation
+
+5. **Smart Diff Truncation**: Large diffs are truncated with instructions to use read/grep tools:
+   - TypeScript diffs limited to 500 lines
+   - JSON diffs limited to 500 lines
+   - YAML diffs limited to 500 lines
+   - Truncation notice includes total line count
+
+6. **Documentation Validation**: Runs markdownlint on generated documentation:
+   - Validates markdown syntax
+   - Reports warnings in PR comments
+   - Continues workflow even if validation fails
 
 #### Environment Variables
 
@@ -113,12 +125,59 @@ The workflow determines documentation scope based on file patterns:
 | Pattern | Documentation Triggered |
 |---------|------------------------|
 | `src/cli/**`, `src/core/**` | ARCHITECTURE.md, API.md |
-| `src/router/**`, `routing-config.json` | ROUTING.md |
+| `src/core/router*`, `src/config/routing*` | ROUTING.md |
 | `src/providers/**` | PROVIDERS.md |
 | `*.json`, `.env*` | CONFIGURATION.md |
 | `*.test.ts`, `*.spec.ts` | TESTING.md |
 | `.github/workflows/**`, `scripts/**` | AUTOMATION.md |
 | All changes | CHANGELOG.md, CONTRIBUTING.md |
+
+#### Workflow Improvements (v0.2.1)
+
+Recent improvements to the documentation workflow:
+
+1. **Bot Commit Detection**: Finds previous documentation commits using `[alexi-bot]` marker in commit message
+2. **Code-Only Changes**: Filters out documentation files when determining if regeneration is needed
+3. **Diff Truncation**: Large diffs are truncated at 500 lines per file type with instructions to use tools
+4. **Validation**: Runs markdownlint on generated files and reports warnings
+5. **Staged File Control**: Only stages files explicitly listed in documentation scope
+6. **Commit Message Standard**: Uses `[skip ci] [alexi-bot]` markers for bot commits
+
+#### Workflow Steps Detail
+
+```mermaid
+sequenceDiagram
+    participant GH as GitHub Actions
+    participant Git as Git Repository
+    participant Alexi as Alexi CLI
+    participant Claude as Claude AI
+    participant Docs as Documentation
+    
+    GH->>Git: Checkout PR branch
+    GH->>Git: Find last [alexi-bot] commit
+    Git-->>GH: Last doc commit hash
+    GH->>Git: Analyze changes since last doc commit
+    Git-->>GH: Changed files (excluding docs/)
+    
+    alt No code changes
+        GH->>GH: Skip documentation generation
+    else Code changes detected
+        GH->>Git: Generate diff report (truncated)
+        GH->>Git: Generate commit history
+        GH->>Alexi: Build CLI
+        GH->>Alexi: Run agent mode with tools
+        Alexi->>Claude: Send documentation prompt
+        Claude->>Docs: Read existing docs (read tool)
+        Claude->>Docs: Update docs (write/edit tools)
+        Docs-->>Claude: Tool results
+        Claude-->>Alexi: Complete
+        Alexi-->>GH: Success
+        GH->>Docs: Run markdownlint validation
+        GH->>Git: Stage documentation files
+        GH->>Git: Commit with [alexi-bot] marker
+        GH->>Git: Push to PR branch
+    end
+```
 
 ### 2. Upstream Sync Workflow
 
