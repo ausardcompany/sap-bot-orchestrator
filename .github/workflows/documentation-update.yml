@@ -102,7 +102,7 @@ jobs:
           fi
           
           # Find the last documentation commit by bot
-          LAST_DOC_COMMIT=$(git log --oneline --grep="docs: auto-generate documentation \[skip ci\]" -1 --format="%H" 2>/dev/null || echo "")
+          LAST_DOC_COMMIT=$(git log --oneline --grep="\\[alexi-bot\\]" -1 --format="%H" 2>/dev/null || echo "")
           
           if [ -n "$LAST_DOC_COMMIT" ]; then
             echo "[INFO] Found previous documentation commit: ${LAST_DOC_COMMIT:0:7}"
@@ -117,7 +117,7 @@ jobs:
           fi
           
           # Filter out documentation files from changed files
-          CHANGED_FILES=$(echo "$CHANGED_FILES" | grep -v -E '^(docs/|CHANGELOG\.md$|README\.md$|.*\.md$)' || echo "")
+          CHANGED_FILES=$(echo "$CHANGED_FILES" | grep -v -E '^(docs/|CHANGELOG\.md$)' || echo "")
           
           # Check if there are any code changes
           if [ -z "$CHANGED_FILES" ]; then
@@ -156,7 +156,7 @@ jobs:
             echo "[CHANGED] CLI module (commands, program)" >> analysis.md
           fi
           
-          if echo "$CHANGED_FILES" | grep -qE 'src/(router|routing)/'; then
+          if echo "$CHANGED_FILES" | grep -qE 'src/core/router|src/config/routing'; then
             ROUTING_CHANGED=true
             echo "[CHANGED] Routing module (router, classifier)" >> analysis.md
           fi
@@ -166,7 +166,7 @@ jobs:
             echo "[CHANGED] Provider module (OpenAI, Claude, Bedrock)" >> analysis.md
           fi
           
-          if echo "$CHANGED_FILES" | grep -qE 'src/(core|orchestrator)/'; then
+          if echo "$CHANGED_FILES" | grep -qE 'src/core/'; then
             CORE_CHANGED=true
             echo "[CHANGED] Core orchestration" >> analysis.md
           fi
@@ -335,7 +335,13 @@ jobs:
           if [ "${{ steps.analyze.outputs.ts_changed }}" = "true" ]; then
             echo "### TypeScript Changes Preview" >> diff.md
             echo '```typescript' >> diff.md
-            git diff "$DIFF_BASE"...HEAD -- '*.ts' '*.tsx' | head -100 >> diff.md
+            TS_DIFF=$(git diff "$DIFF_BASE"...HEAD -- '*.ts' '*.tsx')
+            TS_LINES=$(echo "$TS_DIFF" | wc -l)
+            echo "$TS_DIFF" | head -500 >> diff.md
+            if [ "$TS_LINES" -gt 500 ]; then
+              echo "" >> diff.md
+              echo "... [truncated, ${TS_LINES} lines total] Use read/grep tools for full context." >> diff.md
+            fi
             echo '```' >> diff.md
           fi
           
@@ -343,7 +349,13 @@ jobs:
           if [ "${{ steps.analyze.outputs.config_changed }}" = "true" ]; then
             echo "### Configuration Changes Preview" >> diff.md
             echo '```json' >> diff.md
-            git diff "$DIFF_BASE"...HEAD -- '*.json' | head -100 >> diff.md
+            JSON_DIFF=$(git diff "$DIFF_BASE"...HEAD -- '*.json')
+            JSON_LINES=$(echo "$JSON_DIFF" | wc -l)
+            echo "$JSON_DIFF" | head -500 >> diff.md
+            if [ "$JSON_LINES" -gt 500 ]; then
+              echo "" >> diff.md
+              echo "... [truncated, ${JSON_LINES} lines total] Use read/grep tools for full context." >> diff.md
+            fi
             echo '```' >> diff.md
           fi
           
@@ -351,7 +363,13 @@ jobs:
           if [ "${{ steps.analyze.outputs.workflows_changed }}" = "true" ]; then
             echo "### Workflow Changes Preview" >> diff.md
             echo '```yaml' >> diff.md
-            git diff "$DIFF_BASE"...HEAD -- '*.yml' '*.yaml' | head -100 >> diff.md
+            YAML_DIFF=$(git diff "$DIFF_BASE"...HEAD -- '*.yml' '*.yaml')
+            YAML_LINES=$(echo "$YAML_DIFF" | wc -l)
+            echo "$YAML_DIFF" | head -500 >> diff.md
+            if [ "$YAML_LINES" -gt 500 ]; then
+              echo "" >> diff.md
+              echo "... [truncated, ${YAML_LINES} lines total] Use read/grep tools for full context." >> diff.md
+            fi
             echo '```' >> diff.md
           fi
           
@@ -475,34 +493,8 @@ jobs:
         run: |
           echo "Running Alexi CLI with SAP AI Core (agentic mode)..."
           
-          # Create system prompt file for agentic documentation generation
-          cat > system-prompt.txt << 'SYSTEMPROMPT'
-          You are an expert technical writer generating documentation for the Alexi project.
-          
-          Your task is to UPDATE documentation files based on the code changes provided.
-          
-          CRITICAL INSTRUCTIONS:
-          1. Use the 'read' tool to examine existing documentation files before updating them
-          2. Use the 'write' tool to create new documentation files or fully replace existing ones
-          3. Use the 'edit' tool to make targeted changes to existing documentation files
-          4. Use 'glob' and 'grep' to find relevant code to document
-          
-          IMPORTANT FILE PATHS:
-          - Most documentation files go in the 'docs/' directory (e.g., docs/ARCHITECTURE.md, docs/API.md)
-          - CHANGELOG.md goes in the repository root (not docs/)
-          - Use the EXACT paths specified in the Documentation Scope section
-          
-          DOCUMENTATION REQUIREMENTS:
-          - Include at least 3 Mermaid diagrams per major document
-          - Follow the existing documentation style in the project
-          - Be accurate and reflect actual code behavior
-          - Update CHANGELOG.md with the changes in this PR
-          
-          After updating all required files, provide a brief summary of what was changed.
-          SYSTEMPROMPT
-          
-          # Read system prompt from file to avoid escaping issues
-          SYSTEM_PROMPT=$(cat system-prompt.txt)
+          # Role-only system prompt — detailed instructions are in the template prompt
+          SYSTEM_PROMPT="You are a technical documentation writer for the Alexi project. Read source code files using the provided tools before writing documentation. Write to the exact file paths specified in the Documentation Scope section."
           
           # Use 'agent' command which enables tool execution loop
           # This allows the LLM to write/edit files directly
@@ -513,6 +505,7 @@ jobs:
           node dist/cli/program.js agent \
             --message-file kilo-prompt.md \
             --auto-route \
+            --effort high \
             --max-iterations 30 \
             --tools "read,write,edit,glob,grep" \
             --workdir "$(pwd)" \
@@ -540,17 +533,43 @@ jobs:
           # Show full output as artifact
           echo "=== Full output available in artifacts ==="
       
+      - name: Validate generated documentation
+        if: steps.check_needed.outputs.skip != 'true' && steps.bot.outputs.success == 'true'
+        id: validate
+        continue-on-error: true
+        run: |
+          DOCS_TO_UPDATE="${​{ steps.scope.outputs.docs_to_update }}"
+          EXISTING_DOCS=""
+          for f in $DOCS_TO_UPDATE; do
+            [ -f "$f" ] && EXISTING_DOCS="$EXISTING_DOCS $f"
+          done
+          
+          if [ -n "$EXISTING_DOCS" ]; then
+            echo "Validating:$EXISTING_DOCS"
+            npx --yes markdownlint-cli2 $EXISTING_DOCS 2>&1 | tee validation.log || true
+            if [ -s validation.log ]; then
+              echo "has_warnings=true" >> $GITHUB_OUTPUT
+            else
+              echo "has_warnings=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "No documentation files to validate"
+            echo "has_warnings=false" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Commit and push documentation changes
         if: steps.check_needed.outputs.skip != 'true' && steps.bot.outputs.success == 'true'
         run: |
           # --- 1. Handle any unstaged/untracked documentation changes ---
-          # Add all documentation files (only if they exist)
-          git add docs/ CHANGELOG.md 2>/dev/null || true
-          [ -f README.md ] && git add README.md || true
+          # Stage only the files the workflow intended to update (never unmanaged files)
+          DOCS_TO_UPDATE="${{ steps.scope.outputs.docs_to_update }}"
+          for f in $DOCS_TO_UPDATE; do
+            [ -f "$f" ] && git add "$f"
+          done
           
           # Create a new commit if there are staged changes
           if ! git diff --cached --quiet; then
-            git commit -m "docs: auto-generate documentation [skip ci]"
+            git commit -m "docs: auto-generate documentation [skip ci] [alexi-bot]"
             echo "[OK] Created documentation commit"
           else
             echo "[INFO] No unstaged documentation changes to commit"
@@ -601,6 +620,15 @@ jobs:
             if (fs.existsSync('analysis.md')) {
               comment += '### Analysis\\n\\n';
               comment += fs.readFileSync('analysis.md', 'utf8') + '\\n\\n';
+            }
+            
+            // Add validation report if available
+            if (fs.existsSync('validation.log')) {
+              const validationLog = fs.readFileSync('validation.log', 'utf8').trim();
+              if (validationLog) {
+                comment += '### Validation Warnings\\n\\n';
+                comment += '```\\n' + validationLog.slice(0, 3000) + '\\n```\\n\\n';
+              }
             }
             
             comment += '### Next Steps\\n\\n';
@@ -688,4 +716,5 @@ jobs:
             diff.md
             kilo-prompt.md
             bot-output.log
+            validation.log
           retention-days: 30
