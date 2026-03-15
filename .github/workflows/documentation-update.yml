@@ -204,6 +204,15 @@ jobs:
           
           cat analysis.md
       
+      - name: Determine force regeneration
+        id: force_flag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force_full_regeneration }}" = "true" ]; then
+            echo "force=true" >> $GITHUB_OUTPUT
+          else
+            echo "force=false" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Check if documentation update needed
         id: check_needed
         run: |
@@ -213,15 +222,6 @@ jobs:
           else
             echo "skip=false" >> $GITHUB_OUTPUT
             echo "[OK] Code changes detected, will update documentation"
-          fi
-      
-      - name: Determine force regeneration
-        id: force_flag
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force_full_regeneration }}" = "true" ]; then
-            echo "force=true" >> $GITHUB_OUTPUT
-          else
-            echo "force=false" >> $GITHUB_OUTPUT
           fi
       
       - name: Determine documentation scope

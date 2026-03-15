@@ -24,12 +24,12 @@ describe('effortLevel', () => {
       expect(cfg.compactionThreshold).toBe(0.5);
     });
 
-    it('medium should match current defaults (50 iterations, 4096 tokens, no preferCheap)', () => {
+    it('medium should match current defaults (50 iterations, 16384 tokens, no preferCheap)', () => {
       const cfg = EFFORT_CONFIGS.medium;
       expect(cfg.label).toBe('Medium (balanced)');
       expect(cfg.maxIterations).toBe(50);
       expect(cfg.preferCheap).toBe(false);
-      expect(cfg.maxTokens).toBe(4096);
+      expect(cfg.maxTokens).toBe(16384);
       expect(cfg.thinkingBudget).toBe(0);
       expect(cfg.compactionThreshold).toBe(0.75);
     });
@@ -39,7 +39,7 @@ describe('effortLevel', () => {
       expect(cfg.label).toBe('High (thorough)');
       expect(cfg.maxIterations).toBe(100);
       expect(cfg.preferCheap).toBe(false);
-      expect(cfg.maxTokens).toBe(8192);
+      expect(cfg.maxTokens).toBe(32768);
       expect(cfg.thinkingBudget).toBe(10000);
       expect(cfg.compactionThreshold).toBe(0.9);
     });
