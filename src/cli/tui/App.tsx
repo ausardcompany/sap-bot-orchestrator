@@ -6,7 +6,8 @@ import { SessionProvider, useSession } from './context/SessionContext.js';
 import { ChatProvider, useChat } from './context/ChatContext.js';
 import { KeybindProvider, useKeybind } from './context/KeybindContext.js';
 import { DialogProvider, useDialog } from './context/DialogContext.js';
-import { AttachmentProvider } from './context/AttachmentContext.js';
+import { AttachmentProvider, useAttachments } from './context/AttachmentContext.js';
+import type { ImageAttachmentPreview } from './context/AttachmentContext.js';
 import { useStreamChat } from './hooks/useStreamChat.js';
 import { usePermission } from './hooks/usePermission.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
@@ -95,6 +96,7 @@ function AppLayout(): React.JSX.Element {
   const { state: keybindState } = useKeybind();
   const chat = useChat();
   const { sendMessage } = useStreamChat();
+  const { pending: pendingAttachments } = useAttachments();
   useToolEvents();
   usePermission();
 
@@ -137,12 +139,26 @@ function AppLayout(): React.JSX.Element {
       exit();
       return;
     }
+
+    // Snapshot image previews before sendMessage consumes them
+    const imagePreviews: ImageAttachmentPreview[] | undefined =
+      pendingAttachments.length > 0
+        ? pendingAttachments.map((att) => ({
+            id: att.id,
+            format: att.format,
+            sizeBytes: att.sizeBytes,
+            source: att.source,
+            filePath: att.filePath,
+          }))
+        : undefined;
+
     const newMessage: MessageDisplay = {
       id: `msg-${Date.now()}`,
       role: 'user',
       content: text,
       toolCalls: [],
       timestamp: Date.now(),
+      images: imagePreviews,
     };
     setMessages((prev) => [...prev, newMessage]);
     // Fire and forget — streaming updates flow through ChatContext
