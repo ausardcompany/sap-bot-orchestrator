@@ -1,3 +1,10 @@
+# Contract: Rewritten `01-header.md` Template
+
+This is the new content for `.github/templates/01-header.md`, replacing the current stale version.
+
+---
+
+```markdown
 # Task: Generate Documentation for Alexi
 
 ## Context
@@ -96,3 +103,14 @@ alexi/
 ## IMPORTANT: Read Source Code Before Writing
 
 Do NOT rely solely on the diff preview below. Use the `read`, `glob`, and `grep` tools to examine actual source files before writing documentation. The diff is a starting point — always verify against the real code.
+```
+
+---
+
+## Key Changes from Current `01-header.md`
+
+1. **Project description**: Updated from multi-provider to SAP AI Core exclusive
+2. **Technology stack**: Added Ink/React, Vitest; removed non-existent providers
+3. **Project structure**: Complete `src/` directory listing matching actual codebase (30 directories vs. previous 6)
+4. **CLI commands**: Full table with all 16 commands (previously 6, missing `agent`)
+5. **Added instruction**: "Read source code before writing" — addresses Issue 7 (truncated diffs)
