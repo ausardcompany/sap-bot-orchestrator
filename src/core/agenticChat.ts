@@ -396,7 +396,7 @@ export async function agenticChat(
     const result: CompletionResult = await provider.complete(
       messages as Array<{ role: string; content: string }>,
       {
-        maxTokens: 4096,
+        maxTokens: effortConfig.maxTokens,
         tools: toolSchemas.length > 0 ? toolSchemas : undefined,
       }
     );
@@ -408,6 +408,18 @@ export async function agenticChat(
       totalUsage.completion_tokens =
         (totalUsage.completion_tokens ?? 0) + (result.usage.completion_tokens ?? 0);
       totalUsage.total_tokens = (totalUsage.total_tokens ?? 0) + (result.usage.total_tokens ?? 0);
+    }
+
+    // Detect output truncation — when finishReason is 'length', the response was cut
+    // short by the max_tokens limit. Tool call arguments may be incomplete/corrupted.
+    if (result.finishReason === 'length') {
+      options?.onProgress?.({
+        type: 'iteration',
+        iteration: iterations,
+        message:
+          'Warning: LLM output was truncated (max_tokens reached). ' +
+          'Tool calls in this response may have incomplete parameters.',
+      });
     }
 
     // Check if LLM wants to use tools
