@@ -606,13 +606,13 @@ jobs:
         if: inputs.dry_run != true && steps.kilo-changes.outputs.kilo_made_changes == 'true'
         id: commit-changes
         env:
-          GH_TOKEN: ${​{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Create a dated feature branch (include run number for same-day retries)
-          BRANCH="auto/sync-upstream-$(date +%Y-%m-%d)-run${​{ github.run_number }}"
+          BRANCH="auto/sync-upstream-$(date +%Y-%m-%d)-run${{ github.run_number }}"
           git checkout -b "$BRANCH"
 
           # ── Auto-bump patch version ───────────────────────────────────
@@ -636,26 +636,26 @@ jobs:
           cat > .github/last-sync-commits.json << SYNC_EOF
           {
             "kilocode": {
-              "last_synced_commit": "${​{ steps.current-commits.outputs.current_kilocode }}",
+              "last_synced_commit": "${{ steps.current-commits.outputs.current_kilocode }}",
               "last_synced_at": "$SYNCED_AT",
               "upstream": "Kilo-Org/kilocode",
               "fork": "ausard/kilocode"
             },
             "opencode": {
-              "last_synced_commit": "${​{ steps.current-commits.outputs.current_opencode }}",
+              "last_synced_commit": "${{ steps.current-commits.outputs.current_opencode }}",
               "last_synced_at": "$SYNCED_AT",
               "upstream": "anomalyco/opencode",
               "fork": "ausard/opencode"
             },
             "claude-code": {
-              "last_synced_commit": "${​{ steps.current-commits.outputs.current_claude_code }}",
+              "last_synced_commit": "${{ steps.current-commits.outputs.current_claude_code }}",
               "last_synced_at": "$SYNCED_AT",
               "upstream": "anthropics/claude-code",
               "fork": "direct-clone"
             },
             "metadata": {
               "version": "1.1.0",
-              "workflow_run": "${​{ github.run_id }}",
+              "workflow_run": "${{ github.run_id }}",
               "description": "Tracks last synced commits from upstream repositories"
             }
           }
@@ -669,9 +669,9 @@ jobs:
           git commit --no-verify -m "feat(sync): apply upstream changes ($(date +%Y-%m-%d))
 
           Synchronized changes from upstream repositories:
-          - kilocode: ${​{ steps.prev-commits.outputs.prev_kilocode }} -> ${​{ steps.current-commits.outputs.current_kilocode }}
-          - opencode: ${​{ steps.prev-commits.outputs.prev_opencode }} -> ${​{ steps.current-commits.outputs.current_opencode }}
-          - claude-code: ${​{ steps.prev-commits.outputs.prev_claude_code }} -> ${​{ steps.current-commits.outputs.current_claude_code }}
+          - kilocode: ${{ steps.prev-commits.outputs.prev_kilocode }} -> ${{ steps.current-commits.outputs.current_kilocode }}
+          - opencode: ${{ steps.prev-commits.outputs.prev_opencode }} -> ${{ steps.current-commits.outputs.current_opencode }}
+          - claude-code: ${{ steps.prev-commits.outputs.prev_claude_code }} -> ${{ steps.current-commits.outputs.current_claude_code }}
 
           Version bump: $OLD_VERSION → $NEW_VERSION
 
@@ -724,20 +724,20 @@ jobs:
           PR_BODY="${PR_BODY//PLAN_FILE_PLACEHOLDER/$PLAN_FILE}"
 
           # Insert diff stat
-          DIFF_STAT="${​{ steps.kilo-changes.outputs.diff_stat }}"
+          DIFF_STAT="${{ steps.kilo-changes.outputs.diff_stat }}"
           PR_BODY="${PR_BODY//DIFF_STAT_PLACEHOLDER/$DIFF_STAT}"
 
           # Insert AI summary
-          AI_SUMMARY="${​{ steps.kilo-changes.outputs.ai_summary }}"
+          AI_SUMMARY="${{ steps.kilo-changes.outputs.ai_summary }}"
           if [ -z "$AI_SUMMARY" ]; then
             AI_SUMMARY="No summary extracted from agent output."
           fi
           PR_BODY="${PR_BODY//AI_SUMMARY_PLACEHOLDER/$AI_SUMMARY}"
 
           # Insert repo table (built line-by-line to stay inside YAML indentation)
-          REPO_LINE1="| kilocode | \`${​{ steps.prev-commits.outputs.prev_kilocode }}\` | \`${​{ steps.current-commits.outputs.current_kilocode }}\` |"
-          REPO_LINE2="| opencode | \`${​{ steps.prev-commits.outputs.prev_opencode }}\` | \`${​{ steps.current-commits.outputs.current_opencode }}\` |"
-          REPO_LINE3="| claude-code | \`${​{ steps.prev-commits.outputs.prev_claude_code }}\` | \`${​{ steps.current-commits.outputs.current_claude_code }}\` |"
+          REPO_LINE1="| kilocode | \`${{ steps.prev-commits.outputs.prev_kilocode }}\` | \`${{ steps.current-commits.outputs.current_kilocode }}\` |"
+          REPO_LINE2="| opencode | \`${{ steps.prev-commits.outputs.prev_opencode }}\` | \`${{ steps.current-commits.outputs.current_opencode }}\` |"
+          REPO_LINE3="| claude-code | \`${{ steps.prev-commits.outputs.prev_claude_code }}\` | \`${{ steps.current-commits.outputs.current_claude_code }}\` |"
           REPO_TABLE="${REPO_LINE1}"$'\n'"${REPO_LINE2}"$'\n'"${REPO_LINE3}"
           PR_BODY="${PR_BODY//REPO_TABLE_PLACEHOLDER/$REPO_TABLE}"
 
