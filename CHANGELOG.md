@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-03-16
+
+### Added
+
+- Inline autocomplete system for TUI slash commands with keyboard navigation
+- osascript fallback for clipboard image paste on macOS (eliminates pngpaste dependency)
+- Comprehensive test coverage for clipboard functionality including platform detection and fallback mechanisms
+
+### Changed
+
+- TUI InputBox component now displays autocomplete suggestions when typing slash commands
+- Keyboard navigation enhanced with Tab/Shift+Tab for autocomplete selection and Up/Down arrow key support
+- Clipboard image reading now prioritizes pngpaste but falls back to native osascript on macOS
+- Documentation workflow improved with better diff truncation and validation reporting
+
+### Fixed
+
+- Slash commands now properly intercepted by useCommands hook instead of leaking to LLM
+- Command Palette now correctly displays all registered slash commands
+- macOS clipboard paste no longer requires external pngpaste installation
+
 ## [0.2.2] - 2026-03-15
 
 ### Fixed
@@ -97,7 +118,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rule-based configuration system
 - Autonomous self-updating from upstream repositories
 
-[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/ausardcompany/alexi/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/ausardcompany/alexi/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/ausardcompany/alexi/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/ausardcompany/alexi/compare/v0.1.3...v0.2.0

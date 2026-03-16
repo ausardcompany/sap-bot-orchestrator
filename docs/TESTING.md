@@ -256,6 +256,121 @@ Each tool is tested across multiple categories:
    - Description presence
    - Schema generation
 
+## Testing Utilities
+
+Utility modules like clipboard handling have dedicated test suites to ensure cross-platform compatibility.
+
+### Clipboard Testing
+
+The clipboard utility supports multiple platforms and tools, requiring comprehensive testing of detection and fallback mechanisms.
+
+#### Test Coverage Areas
+
+1. **Platform Detection**
+   - macOS: pngpaste and osascript fallback
+   - Linux X11: xclip
+   - Linux Wayland: wl-paste
+   - Windows: PowerShell
+   - Unsupported platforms
+
+2. **Tool Detection**
+   - Available tool detection via `which`/`where`
+   - Fallback chain execution
+   - Cache behavior
+
+3. **Image Reading**
+   - Valid image formats (PNG, JPEG, GIF, WebP)
+   - Format detection via magic bytes
+   - Error handling for empty clipboard
+   - Error handling for non-image data
+
+4. **File Reading**
+   - Valid image file reading
+   - Non-existent file errors
+   - Unsupported format errors
+   - Empty file errors
+
+#### Example: Testing Clipboard Detection
+
+```typescript
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { _resetClipboardCache } from '../src/utils/clipboard.js';
+
+vi.mock('node:child_process', () => ({
+  execFile: vi.fn(),
+}));
+
+import { execFile } from 'node:child_process';
+const mockExecFile = vi.mocked(execFile);
+
+describe('clipboard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    _resetClipboardCache();
+  });
+
+  it('should detect pngpaste on macOS', async () => {
+    Object.defineProperty(process, 'platform', { 
+      value: 'darwin', 
+      configurable: true 
+    });
+
+    // Mock successful pngpaste detection
+    mockExecFile.mockImplementation((cmd, args, _opts, cb) => {
+      const callback = typeof _opts === 'function' ? _opts : cb;
+      if (cmd === 'which' && args[0] === 'pngpaste') {
+        callback(null, { stdout: '/usr/local/bin/pngpaste', stderr: '' });
+      }
+      return undefined;
+    });
+
+    const { detectClipboard } = await import('../src/utils/clipboard.js');
+    _resetClipboardCache();
+    const result = await detectClipboard();
+
+    expect(result.available).toBe(true);
+    expect(result.tool).toBe('pngpaste');
+    expect(result.platform).toBe('darwin');
+  });
+
+  it('should fall back to osascript when pngpaste is missing', async () => {
+    Object.defineProperty(process, 'platform', { 
+      value: 'darwin', 
+      configurable: true 
+    });
+
+    // pngpaste not found, osascript available
+    mockExecFile.mockImplementation((cmd, args, _opts, cb) => {
+      const callback = typeof _opts === 'function' ? _opts : cb;
+      if (cmd === 'which' && args[0] === 'osascript') {
+        callback(null, { stdout: '/usr/bin/osascript', stderr: '' });
+      } else {
+        callback(new Error('not found'), null);
+      }
+      return undefined;
+    });
+
+    const { detectClipboard } = await import('../src/utils/clipboard.js');
+    _resetClipboardCache();
+    const result = await detectClipboard();
+
+    expect(result.available).toBe(true);
+    expect(result.tool).toBe('osascript');
+  });
+});
+```
+
+#### osascript Fallback Testing
+
+The osascript fallback on macOS uses AppleScript to write clipboard images to temporary files. Tests verify:
+
+1. **Successful Image Read**: AppleScript writes PNG data to temp file
+2. **Empty Clipboard**: Handles clipboard with no image data
+3. **Invalid Format**: Handles non-image clipboard content
+4. **Cleanup**: Ensures temporary files are removed after read
+
+This fallback eliminates the external dependency on `pngpaste` while maintaining full functionality on macOS.
+
 ## Testing Providers
 
 Provider tests verify integration with SAP AI Core and proper message formatting.

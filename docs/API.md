@@ -197,6 +197,97 @@ alexi session-delete -s <session-id>
 |--------|------|-------------|
 | `-s, --session <id>` | string | Session ID to delete (required) |
 
+### interactive
+
+Start interactive TUI mode with streaming responses and slash command support.
+
+```bash
+alexi interactive [options]
+alexi i [options]  # Short alias
+```
+
+#### Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--model <id>` | string | Override model selection |
+| `--auto-route` | boolean | Enable automatic model routing |
+| `--prefer-cheap` | boolean | Prefer cheaper models when auto-routing |
+| `--session <id>` | string | Continue existing session |
+| `--system <prompt>` | string | System prompt for conversation |
+
+#### TUI Slash Commands
+
+The interactive TUI supports the following slash commands:
+
+| Command | Aliases | Description |
+|---------|---------|-------------|
+| `/help` | `/h` | Show available commands |
+| `/exit` | `/quit`, `/q` | Exit the TUI |
+| `/clear` | - | Clear message history |
+| `/model [id]` | - | Show or switch the current model |
+| `/agent [name]` | - | Show or switch the current agent |
+| `/status` | - | Show current session status |
+| `/sessions` | - | Open session list dialog |
+| `/mcp` | - | Manage MCP servers |
+| `/theme [dark\|light]` | - | Switch color theme |
+| `/image [file-path]` | `/img` | Attach image from clipboard or file |
+| `/clear-images` | `/cli` | Remove all pending image attachments |
+
+#### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+C` | Exit TUI |
+| `Ctrl+V` | Paste image from clipboard |
+| `Ctrl+K` | Open command palette |
+| `Ctrl+M` | Open model picker dialog |
+| `Ctrl+A` | Open agent selector dialog |
+| `Ctrl+N` | Start new session |
+| `Ctrl+L` | Clear message history |
+| `Up/Down` | Navigate input history or autocomplete |
+| `Tab/Shift+Tab` | Navigate autocomplete suggestions |
+| `Enter` | Submit message or accept autocomplete |
+| `Escape` | Dismiss autocomplete or clear attachments |
+
+#### Autocomplete Features
+
+The TUI input box provides inline autocomplete for slash commands:
+
+- **Trigger**: Type `/` followed by command prefix
+- **Navigation**: Use Up/Down arrows or Tab/Shift+Tab
+- **Selection**: Press Enter or Tab when suggestion is highlighted
+- **Dismissal**: Press Escape to dismiss suggestions
+- **Filtering**: Matches command names and aliases
+- **Display**: Shows up to 6 filtered suggestions with descriptions
+
+#### Image Attachment Support
+
+The TUI supports pasting images directly from the clipboard:
+
+**Platform Support**:
+- macOS: `pngpaste` (preferred) or `osascript` (built-in fallback)
+- Linux X11: `xclip`
+- Linux Wayland: `wl-paste`
+- Windows: PowerShell
+
+**Supported Formats**: PNG, JPEG, GIF, WebP
+
+**Usage**:
+```bash
+# Paste from clipboard
+Press Ctrl+V in TUI
+
+# Attach from file
+/image /path/to/image.png
+
+# Clear attachments
+/clear-images
+```
+
+**Clipboard Detection**:
+The clipboard utility automatically detects available tools on first use and caches the result. On macOS, if `pngpaste` is not installed, it falls back to using `osascript` (AppleScript) which is pre-installed on all macOS systems.
+
 ## Environment Variables
 
 ### Required Variables

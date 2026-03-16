@@ -84,6 +84,184 @@ graph TB
 |--------|------|-------------|
 | Program | `src/cli/program.ts` | CLI entry point using Commander.js |
 | Interactive | `src/cli/interactive.ts` | Interactive mode with streaming UI |
+| TUI | `src/cli/tui/` | Ink-based terminal user interface |
+
+#### TUI System Architecture
+
+The TUI (Terminal User Interface) is built with Ink 6 and React 19, providing a rich interactive experience:
+
+```mermaid
+graph TB
+    subgraph TUI[TUI Components]
+        App[App.tsx]
+        Header[Header]
+        MessageArea[MessageArea]
+        InputBox[InputBox]
+        StatusBar[StatusBar]
+        AttachmentBar[AttachmentBar]
+    end
+    
+    subgraph Contexts[React Contexts]
+        Theme[ThemeContext]
+        Session[SessionContext]
+        Chat[ChatContext]
+        Keybind[KeybindContext]
+        Dialog[DialogContext]
+        Attachment[AttachmentContext]
+    end
+    
+    subgraph Hooks[Custom Hooks]
+        Commands[useCommands]
+        Keyboard[useKeyboard]
+        StreamChat[useStreamChat]
+        Permission[usePermission]
+        ClipboardImage[useClipboardImage]
+    end
+    
+    subgraph Dialogs[Modal Dialogs]
+        ModelPicker[ModelPicker]
+        AgentSelector[AgentSelector]
+        PermissionDialog[PermissionDialog]
+        SessionList[SessionList]
+        CommandPalette[CommandPalette]
+    end
+    
+    App --> Header
+    App --> MessageArea
+    App --> InputBox
+    App --> StatusBar
+    
+    InputBox --> AttachmentBar
+    InputBox --> Commands
+    InputBox --> ClipboardImage
+    
+    App --> Theme
+    App --> Session
+    App --> Chat
+    App --> Keybind
+    App --> Dialog
+    App --> Attachment
+    
+    Commands --> Dialog
+    Keyboard --> Dialog
+    
+    Dialog --> ModelPicker
+    Dialog --> AgentSelector
+    Dialog --> PermissionDialog
+    Dialog --> SessionList
+    Dialog --> CommandPalette
+```
+
+##### TUI Component Responsibilities
+
+| Component | File | Description |
+|-----------|------|-------------|
+| App | `src/cli/tui/App.tsx` | Root component, layout orchestration |
+| Header | `src/cli/tui/components/Header.tsx` | Top bar with session info |
+| MessageArea | `src/cli/tui/components/MessageArea.tsx` | Scrollable message history |
+| InputBox | `src/cli/tui/components/InputBox.tsx` | User input with autocomplete |
+| StatusBar | `src/cli/tui/components/StatusBar.tsx` | Bottom status bar |
+| AttachmentBar | `src/cli/tui/components/AttachmentBar.tsx` | Image attachment previews |
+
+##### Slash Command System
+
+The TUI implements a declarative slash command system through `useCommands` hook:
+
+```typescript
+interface SlashCommand {
+  name: string;
+  aliases?: string[];
+  description: string;
+  category: CommandCategory;
+  execute: (args: string, context: CommandContext) => Promise<boolean>;
+}
+```
+
+**Built-in Commands**:
+- `/help` - Show available commands
+- `/exit`, `/quit`, `/q` - Exit the TUI
+- `/clear` - Clear message history
+- `/model [id]` - Show or switch model
+- `/agent [name]` - Show or switch agent
+- `/status` - Show session status
+- `/sessions` - Open session list
+- `/mcp` - Manage MCP servers
+- `/theme [dark|light]` - Switch theme
+- `/image [file-path]` - Attach image from clipboard or file
+- `/clear-images` - Remove all pending attachments
+
+##### Autocomplete System
+
+The InputBox component provides inline autocomplete for slash commands:
+
+**Features**:
+- Triggers when typing `/` followed by command prefix
+- Displays up to 6 filtered suggestions
+- Keyboard navigation: Up/Down arrows or Tab/Shift+Tab
+- Selection: Enter or Tab when suggestion is highlighted
+- Dismissal: Escape key
+- Fuzzy matching against command names and aliases
+
+**Implementation**:
+```typescript
+// Autocomplete suggestions computed via useMemo
+const suggestions: SlashCommand[] = useMemo(() => {
+  if (!value.startsWith('/') || value.includes(' ')) {
+    return [];
+  }
+  const partial = value.slice(1).toLowerCase();
+  return commands
+    .filter(cmd => 
+      cmd.name.toLowerCase().startsWith(partial) ||
+      cmd.aliases?.some(a => a.toLowerCase().startsWith(partial))
+    )
+    .slice(0, MAX_SUGGESTIONS);
+}, [value, commands]);
+```
+
+##### Clipboard Image Integration
+
+The TUI supports pasting images directly from the clipboard via `Ctrl+V`:
+
+**Platform Support**:
+- macOS: `pngpaste` (preferred) or `osascript` (fallback)
+- Linux X11: `xclip`
+- Linux Wayland: `wl-paste`
+- Windows: PowerShell
+
+**Flow**:
+```mermaid
+sequenceDiagram
+    participant User
+    participant InputBox
+    participant ClipboardHook
+    participant Clipboard
+    participant AttachmentContext
+    
+    User->>InputBox: Press Ctrl+V
+    InputBox->>ClipboardHook: Intercept \\x16
+    ClipboardHook->>Clipboard: readClipboardImage()
+    
+    alt pngpaste available
+        Clipboard->>Clipboard: Use pngpaste
+    else osascript fallback (macOS)
+        Clipboard->>Clipboard: Use AppleScript temp file
+    end
+    
+    Clipboard-->>AttachmentContext: Image data + format
+    AttachmentContext->>AttachmentBar: Display preview
+    AttachmentBar-->>User: Show thumbnail
+```
+
+**osascript Fallback** (macOS):
+When `pngpaste` is not installed, the clipboard utility uses AppleScript to:
+1. Write clipboard image to temporary file
+2. Read file into Buffer
+3. Detect image format via magic bytes
+4. Clean up temporary file
+5. Return image data
+
+This eliminates the external dependency on `pngpaste` while maintaining full functionality.
 
 ### Core Layer
 
