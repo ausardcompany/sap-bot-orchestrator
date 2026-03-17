@@ -199,6 +199,44 @@ graph LR
    const value = context && context.workdir ? context.workdir : process.cwd();
    ```
 
+6. **Module Patterns**: Prefer const objects over namespaces for utility modules
+   ```typescript
+   // Good - ES Module friendly with better tree-shaking
+   function addAll(rules: Set<string>, parts: string[], text: string): void {
+     // implementation
+   }
+   
+   function matches(command: string, rules: Set<string>): boolean {
+     // implementation
+   }
+   
+   export const BashHierarchy = { addAll, matches } as const;
+   
+   // Avoid - TypeScript namespaces are less compatible with ES Modules
+   export namespace BashHierarchy {
+     export function addAll(rules: Set<string>, parts: string[], text: string): void {
+       // implementation
+     }
+     
+     export function matches(command: string, rules: Set<string>): boolean {
+       // implementation
+     }
+   }
+   ```
+
+7. **Import Hygiene**: Remove unused imports to reduce bundle size
+   ```typescript
+   // Good - only import what you use
+   import { AgentSwitched } from '../bus/index.js';
+   import { getAgentPrompt } from './system.js';
+   
+   // Bad - unused imports
+   import * as path from 'path';
+   import * as fs from 'fs/promises';
+   import { AgentSwitched } from '../bus/index.js';
+   import { getAgentPrompt } from './system.js';
+   ```
+
 ### File Organization
 
 ```
@@ -216,7 +254,8 @@ src/
 │   └── anthropic/
 ├── tool/             # Tool system
 │   ├── index.ts      # Tool framework
-│   └── tools/        # Individual tool implementations
+│   ├── tools/        # Individual tool implementations
+│   └── bash-hierarchy.ts  # Hierarchical bash command permission rules
 ├── permission/       # Permission system
 │   └── index.ts
 ├── session/          # Session management

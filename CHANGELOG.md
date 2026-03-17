@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Refactored `BashHierarchy` from namespace to const object pattern for better ES Module compatibility
+  - Converted namespace export to const object with `as const` assertion
+  - Maintains same API surface with `addAll` and `matches` methods
+  - Improves tree-shaking and type inference in consuming modules
+
+### Fixed
+
+- Removed unused `path` and `fs/promises` imports from agent system module
+  - Imports were not referenced in the code after refactoring
+  - Reduces module dependencies and improves build size
+
 ## [0.2.4] - 2026-03-17
 
 ### Added
