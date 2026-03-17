@@ -5,6 +5,8 @@
  */
 
 import { z } from 'zod';
+import * as path from 'path';
+import * as fs from 'fs/promises';
 import { AgentSwitched } from '../bus/index.js';
 import { getAgentPrompt } from './system.js';
 
@@ -34,12 +36,14 @@ export type AgentConfig = z.infer<typeof AgentSchema>;
 // Agent definition with utilities
 export interface Agent extends AgentConfig {
   canUseTool(toolId: string): boolean;
+  native?: boolean; // Whether this is a built-in agent
 }
 
 // Create an agent from config
-function createAgent(config: AgentConfig): Agent {
+function createAgent(config: AgentConfig, native = false): Agent {
   return {
     ...config,
+    native,
     canUseTool(toolId: string): boolean {
       // Check disabled first
       if (this.disabledTools?.includes(toolId)) return false;
@@ -118,16 +122,16 @@ class AgentRegistry {
   constructor() {
     // Register built-in agents
     for (const config of builtInAgents) {
-      this.register(config);
+      this.register(config, true); // Mark as native
     }
   }
 
   /**
    * Register an agent
    */
-  register(config: AgentConfig): Agent {
+  register(config: AgentConfig, native = false): Agent {
     const validated = AgentSchema.parse(config);
-    const agent = createAgent(validated);
+    const agent = createAgent(validated, native);
     this.agents.set(agent.id, agent);
 
     // Register aliases
@@ -261,4 +265,52 @@ export function parseAgentMention(message: string): {
   }
 
   return { agentId: null, cleanMessage: message };
+}
+
+/**
+ * Error class for agent removal failures
+ */
+export class AgentRemoveError extends Error {
+  constructor(
+    public agentName: string,
+    message: string
+  ) {
+    super(message);
+    this.name = 'AgentRemoveError';
+  }
+}
+
+/**
+ * Remove a custom agent by deleting its source files
+ * This is a placeholder implementation - actual file scanning would need
+ * to be implemented based on config directory structure
+ */
+export async function removeAgent(name: string): Promise<void> {
+  const registry = getAgentRegistry();
+  const agent = registry.get(name);
+
+  if (!agent) {
+    throw new AgentRemoveError(name, 'agent not found');
+  }
+
+  if (agent.native) {
+    throw new AgentRemoveError(name, 'cannot remove native agent');
+  }
+
+  // In a full implementation, this would:
+  // 1. Scan config directories for agent .md files
+  // 2. Delete matching files
+  // 3. Update any legacy mode files
+  // For now, just remove from registry
+  const registry_internal = registry as unknown as { agents: Map<string, Agent> };
+  registry_internal.agents.delete(agent.id);
+
+  // Also remove aliases
+  const aliasMap = (registry as unknown as { aliasMap: Map<string, string> }).aliasMap;
+  if (agent.aliases) {
+    for (const alias of agent.aliases) {
+      aliasMap.delete(alias.toLowerCase());
+    }
+  }
+  aliasMap.delete(agent.id.toLowerCase());
 }
