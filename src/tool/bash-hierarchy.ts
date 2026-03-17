@@ -42,12 +42,13 @@ function matches(command: string, approvedRules: Set<string>): boolean {
     return true;
   }
 
-  // Check wildcard patterns
+  // Check wildcard patterns — "prefix *" matches only if the command has
+  // more words beyond the prefix (i.e. "git *" matches "git status" but NOT "git")
   const parts = command.split(/\s+/);
   let prefix = '';
-  for (const part of parts) {
-    prefix = prefix ? `${prefix} ${part}` : part;
-    if (approvedRules.has(`${prefix} *`)) {
+  for (let i = 0; i < parts.length; i++) {
+    prefix = prefix ? `${prefix} ${parts[i]}` : parts[i];
+    if (i < parts.length - 1 && approvedRules.has(`${prefix} *`)) {
       return true;
     }
   }
