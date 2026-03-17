@@ -5,8 +5,6 @@
  */
 
 import { z } from 'zod';
-import * as path from 'path';
-import * as fs from 'fs/promises';
 import { AgentSwitched } from '../bus/index.js';
 import { getAgentPrompt } from './system.js';
 
