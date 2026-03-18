@@ -42,8 +42,10 @@ export const warpgrepTool = defineTool<typeof WarpGrepParamsSchema, WarpGrepResu
 
   async execute(params, context): Promise<ToolResult<WarpGrepResult>> {
     // Check if MorphSDK is available
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let WarpGrepClient: any;
     try {
+      // @ts-expect-error — @morphllm/morphsdk is an optional peer dependency
       const morphSDK = await import('@morphllm/morphsdk');
       WarpGrepClient = morphSDK.WarpGrepClient;
     } catch {
