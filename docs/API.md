@@ -197,6 +197,112 @@ alexi session-delete -s <session-id>
 |--------|------|-------------|
 | `-s, --session <id>` | string | Session ID to delete (required) |
 
+### interactive
+
+Start interactive REPL mode with streaming responses and autocomplete.
+
+```bash
+alexi interactive [options]
+# or
+alexi i [options]
+```
+
+#### Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `--model <id>` | string | Initial model to use |
+| `--auto-route` | boolean | Enable automatic model routing |
+| `--session <id>` | string | Continue existing session |
+
+#### Interactive Commands
+
+The interactive REPL supports slash commands for configuration and session management:
+
+**General Commands**:
+- `/help`, `/h` — Show help message
+- `/exit`, `/quit`, `/q` — Exit the REPL
+- `/clear` — Clear screen
+- `/agent` — Switch agent
+- `/stage` — Switch development stage
+- `/dod` — Run Definition of Done checks
+
+**Model Commands**:
+- `/model <id>` — Switch to a different model (persists to config)
+- `/models` — Pick a model with interactive selector
+- `/autoroute` — Toggle auto model routing
+
+**Session Commands**:
+- `/session` — Show/manage session info
+- `/sessions` — List all sessions
+- `/history` — Show conversation history
+- `/tokens` — Show token usage stats
+- `/compact` — Trigger manual context compaction
+- `/context` — Show context usage
+- `/status` — Show current status
+- `/fork` — Fork current session
+- `/rename` — Rename current session
+- `/clear-history` — Clear conversation history
+- `/cost` — Show cost summary
+- `/stats` — Show usage statistics
+
+**Memory Commands**:
+- `/remember <text>` — Save a memory (use #tags for categorization)
+- `/mem` — List all stored memories
+- `/mem search <query>` — Search memories by text or tag
+- `/mem stats` — Show memory statistics
+- `/mem export` — Export memories to JSON
+
+**Instruction File Commands**:
+- `/memory` — List instruction files (AGENTS.md, ALEXI.md, rules)
+- `/memory edit [project|user]` — Open instruction file in $EDITOR
+- `/memory init` — Create AGENTS.md from template
+
+**Config Commands**:
+- `/system` — Set system prompt
+- `/config` — Show/set configuration
+- `/config show` — Display current configuration
+- `/config path` — Show config file paths
+- `/config set <key> <value>` — Set configuration value
+- `/permissions` — List/reset permission rules
+- `/mcp` — Manage MCP servers
+- `/think` — Toggle extended thinking mode
+- `/effort` — Set effort level
+- `/doctor` — Run environment health checks
+
+**Git Commands**:
+- `/diff` — Show files changed in current session
+- `/undo` — Undo last file change
+- `/redo` — Redo last undone change
+- `/commit` — Force commit pending changes
+- `/git` — Run a git command
+- `/git-log` — Show recent AI commits
+- `/git-config` — Show git config
+
+**Data Commands**:
+- `/export <path>` — Export data to file
+- `/import <path>` — Import data from file
+- `/map` — Show repo map
+- `/map-refresh` — Rebuild repo map
+- `/map-tokens` — Set repo map token budget
+
+#### Autocomplete
+
+The interactive REPL provides intelligent autocomplete for:
+
+1. **Slash commands**: Type `/` and press Tab to see all commands
+   - Fuzzy matching: `/mod` matches `/model`, `/models`
+   - Alias support: `/q` matches `/quit` (alias of `/exit`)
+
+2. **Model names**: Type `/model ` and press Tab to complete model IDs
+   - Example: `/model gpt` shows `gpt-4o`, `gpt-4o-mini`, `gpt-4.1`
+
+3. **File paths**: Type `@` or use path-completing commands
+   - Example: `@src/` shows `src/cli/`, `src/core/`, `src/config/`
+   - Commands like `/export` and `/import` trigger path completion
+
+Press Tab to cycle through completions, Enter to accept, Esc to cancel.
+
 ## Environment Variables
 
 ### Required Variables
@@ -505,7 +611,7 @@ Search file contents using regex.
 
 #### bash
 
-Execute shell commands.
+Execute shell commands with hierarchical permission support.
 
 ```typescript
 {
@@ -515,6 +621,28 @@ Execute shell commands.
   }
 }
 ```
+
+The bash tool uses a hierarchical permission system that allows approval at different granularity levels. For example, approving "npm" allows all npm commands, while approving "npm install" allows only install commands.
+
+#### codebase_search
+
+AI-powered semantic code search using WarpGrep.
+
+```typescript
+{
+  name: 'codebase_search',
+  parameters: {
+    query: string; // Natural language description of what code to find
+  }
+}
+```
+
+Returns relevant code spans with file paths, start/end line numbers, and content. Requires `@morphllm/morphsdk` to be installed. Uses free tier proxy by default (via Kilo API gateway) or MORPH_API_KEY if provided.
+
+**Example queries**:
+- "Find all API endpoint handlers"
+- "Locate the user authentication logic"
+- "Show me where database connections are initialized"
 
 ## Permission System
 

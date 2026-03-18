@@ -99,24 +99,25 @@ graph TB
 
 ### Provider Layer
 
+Alexi uses SAP AI Core Orchestration API as the sole provider for all LLM operations.
+
 | Module | File | Description |
 |--------|------|-------------|
-| OpenAI Compatible | `src/providers/openaiCompatible.ts` | OpenAI API compatible provider |
-| Anthropic Compatible | `src/providers/anthropicCompatible.ts` | Anthropic Messages API |
-| Claude Native | `src/providers/claudeNative.ts` | Direct Claude integration |
-| SAP Orchestration | `src/providers/sapOrchestration.ts` | SAP AI Core via SDK |
-| SAP Native | `src/providers/sapNative.ts` | Native SAP AI Core API |
+| SAP Orchestration | `src/providers/sapOrchestration.ts` | SAP AI Core via SDK (sole provider) |
+| Provider Index | `src/providers/index.ts` | Provider resolution and default model selection |
 
 ### Tool System
 
 | Tool | File | Description |
 |------|------|-------------|
-| Bash | `src/tool/tools/bash.ts` | Execute shell commands |
+| Bash | `src/tool/tools/bash.ts` | Execute shell commands with hierarchical permissions |
+| Bash Hierarchy | `src/tool/tools/bash-hierarchy.ts` | Progressive permission rules for bash commands |
 | Read | `src/tool/tools/read.ts` | Read files and directories |
 | Write | `src/tool/tools/write.ts` | Write files |
 | Edit | `src/tool/tools/edit.ts` | Edit files with string replacement |
 | Glob | `src/tool/tools/glob.ts` | Find files by pattern |
 | Grep | `src/tool/tools/grep.ts` | Search file contents |
+| WarpGrep | `src/tool/tools/warpgrep.ts` | AI-powered semantic codebase search |
 | Task | `src/tool/tools/task.ts` | Launch sub-agents |
 | WebFetch | `src/tool/tools/webfetch.ts` | Fetch web content |
 | Question | `src/tool/tools/question.ts` | Ask user questions |
@@ -129,11 +130,15 @@ graph TB
 | Event Bus | `src/bus/index.ts` | Pub/sub event system |
 | Permission | `src/permission/index.ts` | File access control |
 | Agent | `src/agent/index.ts` | Autonomous agent system |
+| Agent System | `src/agent/system.ts` | System prompt assembly with instruction files |
 | MCP | `src/mcp/index.ts` | Model Context Protocol |
 | Skill | `src/skill/index.ts` | Specialized prompt skills |
 | Compaction | `src/compaction/index.ts` | Context compression |
 | Profile | `src/profile/index.ts` | User profile management |
+| User Config | `src/config/userConfig.ts` | Persistent user configuration |
+| Autocomplete | `src/cli/utils/completer.ts` | Slash command and path completion |
 | Logger | `src/utils/logger.ts` | Centralized logging utility |
+| Clipboard | `src/utils/clipboard.ts` | Cross-platform clipboard image handling |
 
 ## Data Flow
 
@@ -254,16 +259,122 @@ flowchart TB
     Deny --> Result
 ```
 
+## Autocomplete System
+
+The autocomplete engine provides intelligent completions for slash commands, model names, and file paths across both the readline REPL and Ink TUI.
+
+```mermaid
+flowchart TB
+    Input[User Input] --> Parse[Parse Input Line]
+    Parse --> CheckType{Input Type?}
+    
+    CheckType -->|Starts with /| SlashCmd[Slash Command]
+    CheckType -->|/model ...| ModelName[Model Name]
+    CheckType -->|Contains @| FilePath[File Path]
+    CheckType -->|Command with completesPath| CmdPath[Command Path Arg]
+    
+    SlashCmd --> FuzzyMatch[Fuzzy Match Commands]
+    FuzzyMatch --> FilterCmds[Filter by Score]
+    FilterCmds --> SortCmds[Sort by Relevance]
+    
+    ModelName --> FuzzyMatchModels[Fuzzy Match Models]
+    FuzzyMatchModels --> FilterModels[Filter ORCHESTRATION_MODELS]
+    FilterModels --> SortModels[Sort by Score]
+    
+    FilePath --> ResolvePath[Resolve Path with CWD]
+    CmdPath --> ResolvePath
+    ResolvePath --> ReadDir[Read Directory]
+    ReadDir --> FilterFiles[Filter by Prefix]
+    FilterFiles --> LimitResults[Limit to 20 Results]
+    
+    SortCmds --> Return[Return CompletionResult]
+    SortModels --> Return
+    LimitResults --> Return
+    
+    Return --> Display[Display Suggestions]
+    Display --> UserSelect{User Action}
+    UserSelect -->|Enter/Tab| Accept[Accept Completion]
+    UserSelect -->|Up/Down| Navigate[Navigate List]
+    UserSelect -->|Esc| Cancel[Cancel]
+```
+
+### Completion Types
+
+The autocomplete system supports three completion types:
+
+1. **Slash Commands**: Matches command names and aliases with fuzzy matching
+   - Example: `/mod` matches `/model`, `/models`
+   - Displays command description and aliases
+
+2. **Model Names**: Completes model identifiers from `ORCHESTRATION_MODELS`
+   - Example: `gpt` matches `gpt-4o`, `gpt-4o-mini`, `gpt-4.1`
+   - Only triggered after `/model ` command
+
+3. **File Paths**: Completes relative and absolute file paths
+   - Example: `src/c` matches `src/cli/`, `src/config/`, `src/core/`
+   - Triggered by `@` prefix or commands with `completesPath` flag
+   - Directories suffixed with `/`
+   - Hidden files excluded unless explicitly typed
+
+### Fuzzy Matching Algorithm
+
+The completer uses a lightweight fuzzy matching algorithm:
+
+- **Prefix match**: `target.startsWith(query)` — highest score
+  - Score: `(query.length / target.length) * 100 + 50`
+- **Subsequence match**: All characters in query appear in target in order
+  - Score: `consecutiveMatches * 10`
+- **No match**: Returns `score: 0`
+
 ## Configuration
 
 ### Environment Variables
 
 ```
-AICORE_SERVICE_KEY    # SAP AI Core credentials
-AICORE_RESOURCE_GROUP # SAP AI Core resource group
-OPENAI_API_KEY        # OpenAI API key (optional)
-ANTHROPIC_API_KEY     # Anthropic API key (optional)
+AICORE_SERVICE_KEY    # SAP AI Core credentials (required)
+AICORE_RESOURCE_GROUP # SAP AI Core resource group (required)
+AICORE_MODEL          # Default model override (optional)
+MORPH_API_KEY         # WarpGrep semantic search API key (optional)
 ```
+
+### User Configuration
+
+User preferences are persisted in `~/.alexi/config.json`:
+
+```json
+{
+  "defaultModel": "gpt-4o",
+  "soundEnabled": true
+}
+```
+
+#### Default Model Resolution
+
+Default model is resolved in the following order (first non-empty wins):
+
+1. `AICORE_MODEL` environment variable (explicit env always wins)
+2. `defaultModel` in `~/.alexi/config.json` (persistent user preference)
+3. Hardcoded `gpt-4o` fallback
+
+The `/model` command persists the selected model to `~/.alexi/config.json` automatically.
+
+### Instruction Files
+
+Alexi loads instruction files from multiple sources to build the system prompt:
+
+1. **Project-level AGENTS.md** (`workdir/AGENTS.md`)
+   - Project-specific instructions for AI agents
+   - Loaded with `<agents-md>` tags
+
+2. **User-level ALEXI.md** (`~/.alexi/ALEXI.md`)
+   - User-level instructions loaded into every session
+   - Loaded with `<user-instructions>` tags
+
+3. **Project-level rule files** (`workdir/.alexi/rules/*.md`)
+   - Scoped rule files for specific contexts
+   - Loaded with `<rule file="...">` tags
+
+Use `/memory` command to list, edit, and initialize instruction files.
 
 ### Routing Configuration
 

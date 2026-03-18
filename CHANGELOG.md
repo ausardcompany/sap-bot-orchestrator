@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-03-18
+
+### Added
+
+- Autocomplete engine for slash commands, models, and file paths
+  - Framework-agnostic completer module supporting both readline REPL and Ink TUI
+  - Fuzzy matching for slash commands with support for aliases
+  - Model name completion for `/model` command using SAP Orchestration models
+  - File path completion for commands like `/export`, `/import`, and `@file` references
+  - Keyboard navigation (Up/Down/Tab) for autocomplete suggestions
+  - Registered 52 slash commands across 5 categories (general, model, session, config, git)
+- User configuration persistence system
+  - New `src/config/userConfig.ts` module for centralized config management
+  - Default model persistence to `~/.alexi/config.json`
+  - `/model` command now saves selected model as default for future sessions
+  - Key-level accessors for reading/writing individual config values
+- Instruction file management system
+  - `/memory` command for listing and editing instruction files
+  - Support for project-level AGENTS.md (workdir/AGENTS.md)
+  - Support for user-level ALEXI.md (~/.alexi/ALEXI.md)
+  - Support for project-level rule files (workdir/.alexi/rules/*.md)
+  - `/memory edit [project|user]` opens files in $EDITOR
+  - `/memory init` creates AGENTS.md from template
+  - All instruction files loaded into system prompt automatically
+- WarpGrep codebase search tool
+  - AI-powered semantic code search via `codebase_search` tool
+  - Integration with @morphllm/morphsdk for intelligent code discovery
+  - Returns relevant code spans with file paths and line numbers
+  - Free tier proxy support via Kilo API gateway
+- Bash command hierarchy system
+  - Progressive permission rules for bash commands
+  - Hierarchical approval levels (e.g., "npm", "npm install", "npm install lodash")
+  - Allows users to approve commands at different granularity levels
+- CI Auto-Fix workflow
+  - Automated CI failure detection and repair for auto/* branches
+  - Collects failed job logs and error messages
+  - Runs Alexi agent with targeted fix prompts
+  - Verifies fixes by re-running failed checks
+  - Automatic commit and push of fixes
+  - Retry limit (2 per day per branch) to prevent infinite loops
+  - Support for manual workflow dispatch with run ID and branch inputs
+
+### Changed
+
+- Enhanced system prompt assembly with multi-source instruction loading
+  - `buildAssembledSystemPrompt` now loads AGENTS.md, ALEXI.md, and .alexi/rules/*.md
+  - Instruction files loaded in priority order with proper XML tagging
+  - User-level instructions persist across all projects
+  - Project-level rules override user-level instructions
+- Default model resolution order updated
+  - Order: AICORE_MODEL env var, ~/.alexi/config.json, fallback to 'gpt-4o'
+  - `getDefaultModel()` now reads from persistent user config
+  - `/model` command persists selection for future sessions
+- Readline REPL completer integration
+  - Completer now returns real completions for slash commands, models, and paths
+  - Tab key triggers autocomplete instead of agent cycling when completions exist
+  - Agent cycling preserved when no completions match
+- Interactive REPL command handling
+  - `/memory` command repurposed for instruction file management
+  - `/mem` command now handles memories (search, stats, export)
+  - `/config` command now uses centralized config module
+  - Improved `/model` command with default persistence feedback
+- Sound notification system
+  - Refactored to use centralized `userConfig` module
+  - Removed inline config.json I/O in favor of shared API
+
+### Fixed
+
+- Clipboard image paste on macOS now uses osascript fallback when pngpaste unavailable
+- Slash commands properly intercepted in TUI before sending to LLM
+- Command Palette displays all registered slash commands correctly
+
 ## [0.2.2] - 2026-03-15
 
 ### Fixed
@@ -97,7 +169,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rule-based configuration system
 - Autonomous self-updating from upstream repositories
 
-[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/ausardcompany/alexi/compare/v0.2.2...v0.2.4
 [0.2.2]: https://github.com/ausardcompany/alexi/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/ausardcompany/alexi/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/ausardcompany/alexi/compare/v0.1.3...v0.2.0
