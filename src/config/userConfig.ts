@@ -121,11 +121,11 @@ export function updateGlobal(
   options: UpdateGlobalOptions = {}
 ): void {
   const { dispose = true } = options;
-  
+
   const config = loadFullConfig();
   Object.assign(config, updates);
   saveFullConfig(config);
-  
+
   // Disposal logic would go here if needed
   // For now, this is a placeholder for future config instance management
   if (dispose) {
