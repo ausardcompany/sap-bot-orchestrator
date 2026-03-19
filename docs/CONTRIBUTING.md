@@ -451,25 +451,27 @@ Pull requests trigger automated workflows:
    - Updates relevant documentation files
    - Generates Mermaid diagrams
    - Updates CHANGELOG.md
-3. **CI Auto-Fix** (for auto/* branches): Automatically fixes CI failures
-   - Collects failure logs
-   - Applies quick fixes (lint:fix, format)
-   - Uses Alexi agent to fix remaining issues
-   - Verifies fixes and commits changes
+3. **CI Auto-Fix** (for auto/* branches): Two-stage automated CI failure resolution
+   - Collects failure logs with exact error messages
+   - Stage 1: Applies deterministic quick fixes (lint:fix + format), commits immediately
+   - Stage 2: Uses Alexi agent mode only if quick fixes didn't resolve all issues
+   - Verifies all fixes pass the original checks
+   - Commits fixes back to the PR branch
+   - Rate-limited to 2 runs per branch per day
 
 The documentation update workflow will automatically:
 - Detect which documentation files need updating based on changed code
-- Generate accurate technical documentation using Claude AI
+- Generate accurate technical documentation using SAP AI Core
 - Commit documentation changes to your PR branch
 - Ensure documentation stays in sync with code
 
 For auto/* branches, if CI fails, the CI Auto-Fix workflow will:
-- Analyze failure logs with exact error messages
-- Apply deterministic fixes (linting, formatting)
-- Use Alexi agent mode to fix complex issues
+- Preserve ci-failures.md during branch operations
+- Ensure system prompt files are available from master branch
+- Apply quick fixes first and commit them independently
+- Only invoke agent mode if quick fixes don't resolve all issues
 - Verify all fixes pass the original checks
-- Commit fixes back to the PR branch
-- Rate-limited to 2 runs per branch per day
+- Separate deterministic fixes from AI-generated fixes in commit history
 
 ### Code Review
 
@@ -576,6 +578,13 @@ getResource: (params, context) => {
   return path.join(context?.workdir || process.cwd(), params.filePath);
 }
 ```
+
+**CI Auto-Fix Workflow Enhancements**:
+The CI Auto-Fix workflow includes several robustness improvements:
+- Preserves ci-failures.md to /tmp before checkout, restores after
+- Fetches system prompt files from master branch if not present in PR branch
+- Two-stage fix process: quick fixes committed independently, agent mode only if needed
+- Separate commits for deterministic fixes vs AI-generated fixes
 
 ### Contributing to Automation
 

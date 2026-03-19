@@ -21,12 +21,13 @@ graph TB
         DocUpdate[Documentation Update]
         Sync[Upstream Sync]
         CI[Continuous Integration]
+        CIFix[CI Auto-Fix]
         Release[Release Automation]
     end
     
     subgraph Tools["Automation Tools"]
         Alexi[Alexi CLI]
-        Claude[Claude AI Models]
+        SAPAI[SAP AI Core]
         Scripts[Shell Scripts]
     end
     
@@ -36,10 +37,12 @@ graph TB
     Manual --> Sync
     Manual --> DocUpdate
     Push --> Release
+    CI --> CIFix
     
     DocUpdate --> Alexi
+    CIFix --> Alexi
     Sync --> Alexi
-    Alexi --> Claude
+    Alexi --> SAPAI
     Sync --> Scripts
 ```
 
@@ -62,7 +65,7 @@ sequenceDiagram
     participant GH as GitHub Actions
     participant Repo as Repository
     participant Alexi as Alexi CLI
-    participant Claude as Claude AI
+    participant SAPAI as SAP AI Core
     participant Docs as Documentation Files
     
     GH->>Repo: Checkout PR branch
@@ -70,8 +73,8 @@ sequenceDiagram
     GH->>GH: Determine documentation scope
     GH->>Repo: Generate diff summary
     GH->>Alexi: Build CLI
-    Alexi->>Claude: Send documentation prompt
-    Claude->>Docs: Generate/update docs
+    Alexi->>SAPAI: Send documentation prompt
+    SAPAI->>Docs: Generate/update docs
     GH->>Repo: Commit documentation changes
     GH->>Repo: Push to PR branch
 ```
@@ -91,7 +94,7 @@ sequenceDiagram
    - Code diff statistics
    - TypeScript and configuration change previews
 
-3. **AI-Powered Generation**: Uses Claude AI models through Alexi CLI to:
+3. **AI-Powered Generation**: Uses SAP AI Core models through Alexi CLI to:
    - Analyze code changes
    - Update documentation with accurate technical details
    - Generate Mermaid diagrams
@@ -120,153 +123,7 @@ The workflow determines documentation scope based on file patterns:
 | `.github/workflows/**`, `scripts/**` | AUTOMATION.md |
 | All changes | CHANGELOG.md, CONTRIBUTING.md |
 
-### 2. Upstream Sync Workflow
-
-**File**: `.github/workflows/sync-upstream.yml`
-
-**Triggers**:
-- Daily schedule at 06:00 UTC
-- Manual workflow dispatch with options:
-  - `dry_run`: Analyze changes without creating PR
-  - `force_sync`: Sync even if no changes detected
-
-**Purpose**: Automatically synchronizes changes from upstream AI coding assistant repositories (kilocode, opencode, claude-code) and applies relevant updates to Alexi.
-
-#### Upstream Repositories
-
-| Repository | Purpose | Sync Source |
-|------------|---------|-------------|
-| kilocode | AI coding assistant patterns | Kilo-Org/kilocode |
-| opencode | Open source coding patterns | anomalyco/opencode |
-| claude-code | Anthropic Claude patterns | anthropics/claude-code |
-
-#### Workflow Architecture
-
-```mermaid
-graph LR
-    subgraph Upstream["Upstream Repositories"]
-        Kilo[kilocode]
-        Open[opencode]
-        Claude[claude-code]
-    end
-    
-    subgraph Sync["Sync Process"]
-        Fork[Sync Forks]
-        Analyze[Analyze Changes]
-        Plan[Generate Plan]
-        Execute[Execute Updates]
-    end
-    
-    subgraph Alexi["Alexi Repository"]
-        Code[Source Code]
-        Commit[Commit Changes]
-        PR[Create PR]
-    end
-    
-    Kilo --> Fork
-    Open --> Fork
-    Claude --> Fork
-    Fork --> Analyze
-    Analyze --> Plan
-    Plan --> Execute
-    Execute --> Code
-    Code --> Commit
-    Commit --> PR
-```
-
-#### Sync Process
-
-The upstream sync workflow follows a sophisticated two-stage AI-powered process:
-
-**Stage 1: Planning (Claude 4.5 Opus)**
-1. Clone upstream repositories
-2. Read previous sync state from `.github/last-sync-commits.json`
-3. Generate diff report comparing current vs last synced commits
-4. Use Claude 4.5 Opus to analyze changes and create detailed update plan
-5. Plan includes:
-   - Critical, high, medium, and low priority changes
-   - Exact code snippets and modifications
-   - SAP AI Core compatibility considerations
-   - File-by-file change instructions
-
-**Stage 2: Execution (Claude 4.5 Sonnet with Tools)**
-1. Read the generated update plan
-2. Use agentic mode with enabled tools:
-   - `read`: Examine existing files
-   - `write`: Create new files
-   - `edit`: Modify existing files with exact string replacement
-   - `glob`: Find files by pattern
-   - `grep`: Search file contents
-3. Execute changes in priority order
-4. Maximum 50 iterations for complex updates
-5. Generate execution summary
-
-**Stage 3: PR Creation**
-1. Commit all changes made by the AI agent
-2. Update `.github/last-sync-commits.json` with new commit hashes
-3. Create pull request with:
-   - Detailed description of upstream changes
-   - Links to upstream commits
-   - Diff report attachment
-   - Auto-merge enabled for trusted updates
-
-#### Sync State Management
-
-The workflow maintains sync state in `.github/last-sync-commits.json`:
-
-```json
-{
-  "kilocode": {
-    "last_synced_commit": "abc123...",
-    "last_sync_date": "2024-01-15T06:00:00Z"
-  },
-  "opencode": {
-    "last_synced_commit": "def456...",
-    "last_sync_date": "2024-01-15T06:00:00Z"
-  },
-  "claude-code": {
-    "last_synced_commit": "ghi789...",
-    "last_sync_date": "2024-01-15T06:00:00Z"
-  }
-}
-```
-
-#### Auto-Merge Behavior
-
-The workflow automatically merges PRs when:
-- All CI checks pass
-- Changes are from trusted upstream sources
-- No merge conflicts exist
-- PR is properly labeled with `upstream-sync`
-
-#### Dry Run Mode
-
-Manual trigger with `dry_run: true` will:
-- Analyze all upstream changes
-- Generate update plan
-- Show proposed changes in workflow logs
-- NOT create a pull request
-- NOT commit any changes
-
-### 3. Continuous Integration Workflow
-
-**File**: `.github/workflows/ci.yml`
-
-**Triggers**:
-- Push to any branch
-- Pull requests
-
-**Purpose**: Runs tests, linting, and build verification.
-
-**Steps**:
-1. Checkout code
-2. Set up Node.js 22
-3. Install dependencies
-4. Run TypeScript compiler
-5. Run tests
-6. Run linters
-
-### 4. CI Auto-Fix Workflow
+### 2. CI Auto-Fix Workflow
 
 **File**: `.github/workflows/ci-auto-fix.yml`
 
@@ -274,30 +131,32 @@ Manual trigger with `dry_run: true` will:
 - Workflow run completion (when CI workflow fails on auto/* branches)
 - Manual workflow dispatch with run ID and branch name
 
-**Purpose**: Automatically diagnoses and fixes CI failures on auto/* branches using Alexi's agentic capabilities.
+**Purpose**: Automatically diagnoses and fixes CI failures on auto/* branches using Alexi's agentic capabilities with a deterministic two-stage approach.
 
 #### Workflow Architecture
 
 ```mermaid
 graph TB
-    subgraph Trigger[\"Workflow Triggers\"]
+    subgraph Trigger["Workflow Triggers"]
         CIFail[CI Failure on auto/*]
         Manual[Manual Dispatch]
     end
     
-    subgraph Analysis[\"Failure Analysis\"]
+    subgraph Analysis["Failure Analysis"]
         Collect[Collect Failed Job Logs]
         Parse[Parse Error Messages]
-        Build[Build Fix Prompt]
+        Preserve[Preserve ci-failures.md]
     end
     
-    subgraph Fixing[\"Auto-Fix Process\"]
-        QuickFix[Quick Fixes<br/>lint:fix, format]
-        AgentFix[Alexi Agent Fix<br/>read, write, edit, bash]
-        Verify[Verify Fixes]
+    subgraph Fixing["Two-Stage Fix Process"]
+        QuickFix[Stage 1: Quick Fixes<br/>lint:fix + format]
+        QuickCommit[Commit Quick Fixes]
+        QuickVerify[Verify Quick Fixes]
+        AgentFix[Stage 2: Alexi Agent Fix<br/>read, write, edit, bash]
+        Verify[Verify All Fixes]
     end
     
-    subgraph Output[\"PR Update\"]
+    subgraph Output["PR Update"]
         Commit[Commit Changes]
         Push[Push to Branch]
         Comment[Post PR Comment]
@@ -306,31 +165,38 @@ graph TB
     CIFail --> Collect
     Manual --> Collect
     Collect --> Parse
-    Parse --> Build
-    Build --> QuickFix
-    QuickFix --> AgentFix
+    Parse --> Preserve
+    Preserve --> QuickFix
+    QuickFix --> QuickCommit
+    QuickCommit --> QuickVerify
+    QuickVerify --> AgentFix
     AgentFix --> Verify
     Verify --> Commit
     Commit --> Push
     Push --> Comment
     
-    style AgentFix fill:#4CAF50
-    style Verify fill:#2196F3
+    style QuickFix fill:#4CAF50
+    style AgentFix fill:#2196F3
+    style QuickVerify fill:#FF9800
 ```
 
 #### Key Features
 
 1. **Intelligent Failure Detection**: Collects logs from all failed CI jobs with exact error messages, file paths, and line numbers
 
-2. **Two-Stage Fix Process**:
-   - **Quick Fixes**: Runs `npm run lint:fix` and `npm run format` for deterministic auto-fixes
-   - **AI Agent Fixes**: Uses Alexi agent mode with tools (read, write, edit, glob, grep, bash) to apply targeted fixes
+2. **Two-Stage Deterministic Fix Process**:
+   - **Stage 1 - Quick Fixes**: Runs `npm run lint:fix` and `npm run format` for deterministic auto-fixes, commits immediately if changes made, then re-verifies
+   - **Stage 2 - AI Agent Fixes**: Only runs if quick fixes didn't resolve all issues; uses Alexi agent mode with tools (read, write, edit, glob, grep, bash) to apply targeted fixes
 
-3. **Targeted Verification**: Re-runs only the checks that originally failed to verify fixes
+3. **File Preservation**: Saves `ci-failures.md` to `/tmp` before checkout and restores after to prevent loss during branch operations
 
-4. **Rate Limiting**: Maximum 2 auto-fix runs per branch per day to prevent infinite loops
+4. **Prompt File Management**: Ensures `.github/prompts/ci-fix-system.md` is available from master branch even if not present in PR branch
 
-5. **Branch Filtering**: Only processes branches matching `auto/*` pattern
+5. **Targeted Verification**: Re-runs only the checks that originally failed to verify fixes
+
+6. **Rate Limiting**: Maximum 2 auto-fix runs per branch per day to prevent infinite loops
+
+7. **Branch Filtering**: Only processes branches matching `auto/*` pattern
 
 #### Workflow Steps
 
@@ -345,7 +211,7 @@ graph TB
 **Step 3: Collect Failed Job Logs**
 - Fetches all jobs from the failed CI run
 - Filters for jobs with `conclusion == "failure"`
-- Downloads full logs for each failed job
+- Downloads full logs for each failed job (last 200 lines)
 - Generates `ci-failures.md` with structured failure report
 
 **Step 3b: Preserve ci-failures.md**
@@ -354,29 +220,54 @@ graph TB
 
 **Step 4: Checkout PR Branch**
 - Checks out the auto/* branch that triggered the failure
-- Configures git with alexi-bot identity
+- Uses full fetch depth for complete history
 
 **Step 4b: Restore ci-failures.md**
 - Restores `ci-failures.md` from `/tmp` after checkout
 - Ensures failure logs are available for analysis
 
-**Step 5: Build Alexi CLI**
-- Installs dependencies
-- Builds Alexi CLI from source
+**Step 5: Configure Git**
+- Sets git user to `alexi-bot[bot]`
+- Configures email as `alexi-bot[bot]@users.noreply.github.com`
 
-**Step 6: Run Quick Auto-Fixes**
+**Step 5b: Ensure Prompt Files from Master**
+- Checks if `.github/prompts/ci-fix-system.md` exists on PR branch
+- If not found, fetches from `origin/master`
+- Unstages the file to avoid committing it to PR branch
+- Ensures agent step can use the system prompt
+
+**Step 6: Setup Node.js and Build Alexi CLI**
+- Installs Node.js 22
+- Runs `npm ci` to install dependencies
+- Builds Alexi CLI with `npm run build`
+
+**Step 8: Run Quick Auto-Fixes**
 - Runs `npm run lint:fix` to fix linting issues
 - Runs `npm run format` to fix formatting issues
 - Tracks if any changes were made
 
-**Step 7: Build Fix Prompt**
+**Step 8b: Commit and Push Quick Fixes Immediately**
+- Stages only `src/` and `tests/` directories
+- Commits with message: `style(ci): auto-fix lint/format issues [skip ci] [alexi-bot]`
+- Pushes to branch if changes were made
+- Separates deterministic fixes from AI-generated fixes
+
+**Step 8c: Re-verify After Quick Fixes**
+- Runs verification checks for all originally-failed jobs
+- Determines if all issues are resolved
+- Sets `all_fixed=true` if no agent step needed
+- Skips agent step when quick fixes resolved everything
+
+**Step 9: Build Fix Prompt** (only if quick fixes didn't resolve all issues)
+- Verifies system prompt template exists
+- Fetches from master if not present on branch
 - Assembles comprehensive fix prompt with:
   - Failed check names
   - Full error logs with file paths and line numbers
   - Specific verification commands for each check type
   - Instructions to make minimal, targeted fixes
 
-**Step 8: Run Alexi Agent**
+**Step 10: Run Alexi Agent** (only if needed)
 - Invokes Alexi agent mode with:
   - System prompt: `.github/prompts/ci-fix-system.md`
   - Message: `ci-fix-prompt.md` (failure details)
@@ -384,25 +275,27 @@ graph TB
   - Max iterations: 20
   - High effort level
   - Auto-routing enabled
+  - No auto-commits flag
 
-**Step 9: Verify Fixes**
+**Step 11: Verify Fixes** (only if agent ran)
 - Re-runs only the checks that originally failed:
   - Lint failures → `npm run lint`
   - Type errors → `npm run typecheck`
   - Format failures → `npm run format:check`
-  - Test failures → `npm run test:coverage`
-  - Build failures → `npm run build`
+  - Test failures → `npm run build && npm run test:coverage`
+  - Build failures → `npm run build && node dist/cli/program.js --help`
 - Generates verification results summary
 
-**Step 10: Commit and Push**
+**Step 12: Commit and Push** (only if agent ran)
 - Stages changes in `src/` and `tests/` directories only
 - Commits with message: `fix(ci): auto-fix CI failures [skip ci] [alexi-bot]`
 - Pushes to the auto/* branch
 - CI re-triggers automatically on push
 
-**Step 11: Post PR Comment**
+**Step 13: Post PR Comment**
 - Posts detailed comment to PR with:
   - Success/failure status
+  - Whether quick fixes alone resolved issues
   - Number of files changed
   - Verification results
   - Bot output snippet
@@ -472,26 +365,160 @@ if (runCount >= 2) {
 
 Located at `.github/prompts/ci-fix-system.md`:
 
-```markdown
-You are an expert software engineer fixing CI failures in the Alexi codebase.
+The system prompt defines the role, rules, tools, workflow, and constraints for the AI agent when fixing CI failures. Key elements include:
 
-Your role:
-- Read CI failure logs carefully
-- Identify exact files and lines causing failures
-- Make minimal, targeted fixes
-- Verify each fix using bash tool
-- Do NOT make unrelated changes
+- **TypeScript and formatting rules**: Strict mode, ES2022 target, NodeNext modules, single quotes, semicolons, 2-space indentation
+- **Import conventions**: Always use `.js` extension for local imports (ES Modules requirement)
+- **Naming conventions**: camelCase files, PascalCase classes, UPPER_SNAKE_CASE constants
+- **Available tools**: read, glob, grep, edit, write, bash
+- **Hard constraints**: Only fix listed errors, no eslint-disable comments, no ts-ignore, verify before finishing
+- **Error reference**: Common ESLint and TypeScript error patterns with fixes
 
-Available tools:
-- read: Read file contents
-- write: Create or overwrite files
-- edit: Make exact string replacements
-- glob: Find files by pattern
-- grep: Search file contents
-- bash: Run verification commands
+### 3. Upstream Sync Workflow
 
-Always verify fixes before completing the task.
+**File**: `.github/workflows/sync-upstream.yml`
+
+**Triggers**:
+- Daily schedule at 06:00 UTC
+- Manual workflow dispatch with options:
+  - `dry_run`: Analyze changes without creating PR
+  - `force_sync`: Sync even if no changes detected
+
+**Purpose**: Automatically synchronizes changes from upstream AI coding assistant repositories (kilocode, opencode, claude-code) and applies relevant updates to Alexi.
+
+#### Upstream Repositories
+
+| Repository | Purpose | Sync Source |
+|------------|---------|-------------|
+| kilocode | AI coding assistant patterns | Kilo-Org/kilocode |
+| opencode | Open source coding patterns | anomalyco/opencode |
+| claude-code | Anthropic Claude patterns | anthropics/claude-code |
+
+#### Workflow Architecture
+
+```mermaid
+graph LR
+    subgraph Upstream["Upstream Repositories"]
+        Kilo[kilocode]
+        Open[opencode]
+        Claude[claude-code]
+    end
+    
+    subgraph Sync["Sync Process"]
+        Fork[Sync Forks]
+        Analyze[Analyze Changes]
+        Plan[Generate Plan]
+        Execute[Execute Updates]
+    end
+    
+    subgraph Alexi["Alexi Repository"]
+        Code[Source Code]
+        Commit[Commit Changes]
+        PR[Create PR]
+    end
+    
+    Kilo --> Fork
+    Open --> Fork
+    Claude --> Fork
+    Fork --> Analyze
+    Analyze --> Plan
+    Plan --> Execute
+    Execute --> Code
+    Code --> Commit
+    Commit --> PR
 ```
+
+#### Sync Process
+
+The upstream sync workflow follows a sophisticated two-stage AI-powered process:
+
+**Stage 1: Planning (SAP AI Core with Claude models)**
+1. Clone upstream repositories
+2. Read previous sync state from `.github/last-sync-commits.json`
+3. Generate diff report comparing current vs last synced commits
+4. Use SAP AI Core to analyze changes and create detailed update plan
+5. Plan includes:
+   - Critical, high, medium, and low priority changes
+   - Exact code snippets and modifications
+   - SAP AI Core compatibility considerations
+   - File-by-file change instructions
+
+**Stage 2: Execution (SAP AI Core with Tools)**
+1. Read the generated update plan
+2. Use agentic mode with enabled tools:
+   - `read`: Examine existing files
+   - `write`: Create new files
+   - `edit`: Modify existing files with exact string replacement
+   - `glob`: Find files by pattern
+   - `grep`: Search file contents
+3. Execute changes in priority order
+4. Maximum 50 iterations for complex updates
+5. Generate execution summary
+
+**Stage 3: PR Creation**
+1. Commit all changes made by the AI agent
+2. Update `.github/last-sync-commits.json` with new commit hashes
+3. Create pull request with:
+   - Detailed description of upstream changes
+   - Links to upstream commits
+   - Diff report attachment
+   - Auto-merge enabled for trusted updates
+
+#### Sync State Management
+
+The workflow maintains sync state in `.github/last-sync-commits.json`:
+
+```json
+{
+  "kilocode": {
+    "last_synced_commit": "abc123...",
+    "last_sync_date": "2024-01-15T06:00:00Z"
+  },
+  "opencode": {
+    "last_synced_commit": "def456...",
+    "last_sync_date": "2024-01-15T06:00:00Z"
+  },
+  "claude-code": {
+    "last_synced_commit": "ghi789...",
+    "last_sync_date": "2024-01-15T06:00:00Z"
+  }
+}
+```
+
+#### Auto-Merge Behavior
+
+The workflow automatically merges PRs when:
+- All CI checks pass
+- Changes are from trusted upstream sources
+- No merge conflicts exist
+- PR is properly labeled with `upstream-sync`
+
+#### Dry Run Mode
+
+Manual trigger with `dry_run: true` will:
+- Analyze all upstream changes
+- Generate update plan
+- Show proposed changes in workflow logs
+- NOT create a pull request
+- NOT commit any changes
+
+### 4. Continuous Integration Workflow
+
+**File**: `.github/workflows/ci.yml`
+
+**Triggers**:
+- Push to any branch
+- Pull requests
+
+**Purpose**: Runs tests, linting, and build verification.
+
+**Steps**:
+1. Checkout code
+2. Set up Node.js 22
+3. Install dependencies
+4. Run TypeScript compiler
+5. Run tests
+6. Run linters
 
 ### 5. Release Workflows
 
@@ -507,7 +534,7 @@ Always verify fixes before completing the task.
 The automation workflows require the following secrets to be configured in the repository settings:
 
 | Secret | Purpose | Required For |
-|--------|---------|--------------|
+|--------|---------|--------------| 
 | `AICORE_SERVICE_KEY` | SAP AI Core authentication | Documentation Update, Upstream Sync, CI Auto-Fix |
 | `AICORE_RESOURCE_GROUP` | SAP AI Core resource group | Documentation Update, Upstream Sync, CI Auto-Fix |
 | `GH_PAT` | GitHub Personal Access Token | Upstream Sync (cross-repo operations) |
@@ -643,6 +670,7 @@ This enhancement allows the AI agent to:
 2. Use workflow dispatch with verbose flags
 3. Review generated reports in `.github/reports/`
 4. Check sync state in `.github/last-sync-commits.json`
+5. Download workflow artifacts for detailed logs
 
 ### Common Issues
 
@@ -655,13 +683,21 @@ This enhancement allows the AI agent to:
 **Issue**: AI agent makes incorrect changes
 **Solution**: Review generated plan in `.github/reports/update-plan-*.md` and adjust prompts
 
+**Issue**: CI Auto-Fix runs in infinite loop
+**Solution**: Rate limiting prevents this (max 2 runs per day per branch), but verify the limit is working
+
+**Issue**: ci-failures.md lost during workflow execution
+**Solution**: Workflow now preserves file to `/tmp` before checkout and restores after
+
 ## Best Practices
 
 1. **Always test workflow changes**: Use manual dispatch with dry-run mode first
 2. **Review AI-generated changes**: Check PR diffs before merging
 3. **Keep secrets updated**: Rotate credentials regularly
-4. **Monitor workflow costs**: Claude API usage is tracked in SAP AI Core
+4. **Monitor workflow costs**: SAP AI Core usage is tracked per resource group
 5. **Document workflow modifications**: Update this file when changing workflows
+6. **Use conventional commits**: Follow commit message format for automated changelog generation
+7. **Leverage two-stage fixing**: Quick fixes (lint/format) resolve most issues before agent runs
 
 ## Future Enhancements
 
@@ -673,3 +709,5 @@ Planned improvements to the automation system:
 - [ ] Slack/Teams notifications for sync results
 - [ ] Rollback mechanism for failed syncs
 - [ ] Metrics dashboard for sync success rates
+- [ ] Enhanced CI Auto-Fix with learning from past fixes
+- [ ] Parallel execution of independent workflow steps

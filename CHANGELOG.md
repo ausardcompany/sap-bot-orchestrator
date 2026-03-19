@@ -7,11 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- CI Auto-Fix workflow now preserves ci-failures.md file during branch checkout operations
+- CI Auto-Fix workflow ensures prompt files are available from master branch even when not present in PR branch
+- Documentation Update workflow removes zero-width space characters from template variable expressions
+
+### Changed
+
+- CI Auto-Fix workflow implements deterministic two-stage fix process
+  - Stage 1 commits quick fixes (lint:fix + format) immediately and independently
+  - Stage 2 (agent mode) only runs if quick fixes did not resolve all issues
+  - Separate commits for deterministic fixes vs AI-generated fixes
+  - Enhanced verification step after quick fixes to determine if agent step is needed
+- CI Auto-Fix workflow improves file preservation
+  - Saves ci-failures.md to /tmp before checkout
+  - Restores ci-failures.md after checkout
+  - Prevents loss of failure analysis during branch operations
+- CI Auto-Fix workflow enhances prompt file management
+  - Fetches .github/prompts/ci-fix-system.md from origin/master if not present on PR branch
+  - Unstages prompt file to avoid committing it to PR branch
+  - Ensures agent step always has access to system prompt
+
 ## [0.2.6] - 2026-03-19
 
 ### Added
 
-- Unit tests for TUI slash commands (`/image` and `/clear-images`)
+- Unit tests for TUI slash commands (/image and /clear-images)
   - Tests command registration with correct names and aliases
   - Tests clipboard paste functionality when no arguments provided
   - Tests file path handling for image attachments
@@ -24,8 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Enhanced user configuration API with batch update support
-  - Added `updateGlobal()` function for atomic multi-key updates
-  - Added `UpdateGlobalOptions` interface with disposal control
+  - Added updateGlobal() function for atomic multi-key updates
+  - Added UpdateGlobalOptions interface with disposal control
   - Maintains backward compatibility with default dispose behavior
 - Edit tool now preserves line endings during replacements
   - Automatically detects CRLF vs LF line endings in target files
