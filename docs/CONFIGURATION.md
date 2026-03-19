@@ -130,7 +130,8 @@ import {
   getConfigValue,
   setConfigValue,
   getConfigDefaultModel,
-  setConfigDefaultModel
+  setConfigDefaultModel,
+  updateGlobal
 } from './config/userConfig.js';
 
 // Load entire config
@@ -139,8 +140,21 @@ const config = loadFullConfig();
 // Get specific value
 const defaultModel = getConfigDefaultModel();
 
-// Set and persist value
+// Set and persist single value
 setConfigDefaultModel('claude-4-sonnet');
+
+// Batch update multiple values
+updateGlobal({
+  defaultModel: 'gpt-4o',
+  soundEnabled: true,
+  autoRoute: false
+});
+
+// Batch update with options
+updateGlobal(
+  { defaultModel: 'anthropic--claude-4-sonnet' },
+  { dispose: false }
+);
 ```
 
 ### Configuration API
@@ -160,6 +174,15 @@ function setConfigValue(key: string, value: unknown): void
 
 // Delete single value
 function deleteConfigValue(key: string): void
+
+// Batch update multiple keys
+interface UpdateGlobalOptions {
+  dispose?: boolean;  // Default: true (reserved for future use)
+}
+function updateGlobal(
+  updates: Partial<Record<string, unknown>>,
+  options?: UpdateGlobalOptions
+): void
 
 // Typed accessors
 function getConfigDefaultModel(): string | undefined
@@ -584,6 +607,7 @@ interface Session {
 4. **Use Instruction Files for Context**: Provide project context via AGENTS.md and .alexi/rules/
 5. **Version Control Project Files**: Commit AGENTS.md and .alexi/ to version control
 6. **Keep User Files Private**: Never commit ~/.alexi/ directory
+7. **Batch Updates for Performance**: Use `updateGlobal()` when updating multiple config values to reduce I/O operations
 
 ## Configuration Validation
 

@@ -190,7 +190,36 @@ graph LR
    }
    ```
 
-5. **Null Safety**: Use optional chaining and nullish coalescing
+5. **Defensive Programming**: Add null checks for optional dependencies
+   ```typescript
+   // Good - Check availability before use
+   function getParser(): Parser | null {
+     if (!Parser) {
+       return null;
+     }
+     // Initialize and return parser
+   }
+   
+   // Handle null returns gracefully
+   const parser = getParser();
+   if (!parser) {
+     return null;  // Fail gracefully
+   }
+   ```
+
+6. **Line Ending Preservation**: Detect and preserve file line endings
+   ```typescript
+   // Detect line endings
+   const lineEnding = content.includes('\r\n') ? '\r\n' : '\n';
+   
+   // Normalize for processing
+   const normalized = text.replaceAll('\r\n', '\n');
+   
+   // Convert back to original format
+   const converted = normalized.replaceAll('\n', lineEnding);
+   ```
+
+7. **Null Safety**: Use optional chaining and nullish coalescing
    ```typescript
    // Good
    const value = context?.workdir ?? process.cwd();
@@ -306,6 +335,44 @@ npm test -- --coverage
 # Watch mode
 npm test -- --watch
 ```
+
+### Testing File Operations
+
+When testing file operation tools (read, write, edit):
+
+1. **Use Temporary Directories**: Always create temp dirs for test isolation
+   ```typescript
+   let tempDir: string;
+   
+   beforeEach(async () => {
+     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'test-'));
+   });
+   
+   afterEach(async () => {
+     await fs.rm(tempDir, { recursive: true, force: true });
+   });
+   ```
+
+2. **Test Line Ending Preservation**: Verify both LF and CRLF formats
+   ```typescript
+   it('should preserve CRLF line endings', async () => {
+     const contentCRLF = 'line1\r\nline2\r\nline3';
+     await fs.writeFile(filePath, contentCRLF, 'utf-8');
+     
+     await editTool.execute({
+       filePath,
+       oldString: 'line2',
+       newString: 'modified'
+     }, context);
+     
+     const result = await fs.readFile(filePath, 'utf-8');
+     expect(result).toContain('\r\n');
+   });
+   ```
+
+3. **Test Cross-Platform Compatibility**: Consider Windows, macOS, and Linux
+4. **Mock External Dependencies**: Use vi.mock() for external APIs
+5. **Verify File System Changes**: Check actual file contents, not just return values
 
 ## Pull Request Process
 
@@ -505,6 +572,30 @@ When modifying workflows:
 3. Update `docs/AUTOMATION.md`
 4. Document new secrets or configuration
 5. Ensure backward compatibility
+
+### Configuration System
+
+When working with user configuration:
+
+1. **Use Batch Updates**: For multiple config changes, use `updateGlobal()` to minimize disk I/O
+   ```typescript
+   // Good - Single write operation
+   updateGlobal({
+     defaultModel: 'gpt-4o',
+     soundEnabled: true,
+     autoRoute: false
+   });
+   
+   // Avoid - Multiple write operations
+   setConfigValue('defaultModel', 'gpt-4o');
+   setConfigValue('soundEnabled', true);
+   setConfigValue('autoRoute', false);
+   ```
+
+2. **Preserve Backward Compatibility**: Always support existing config formats
+3. **Add Migration Logic**: When changing config schema, provide migration path
+4. **Document New Options**: Update CONFIGURATION.md with new config keys
+5. **Use Typed Accessors**: Create typed getter/setter functions for common config values
 
 ## Getting Help
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-03-19
+
+### Added
+
+- Batch configuration update API with `updateGlobal()` function for efficient multi-key updates
+
+### Changed
+
+- Edit tool now preserves line endings (CRLF vs LF) when performing string replacements
+- Tree-sitter parser initialization now includes defensive null checks for better error handling
+
 ## [0.2.5] - 2026-03-19
 
 ### Added
@@ -156,7 +167,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rule-based configuration system
 - Autonomous self-updating from upstream repositories
 
-[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.2.5...HEAD
+[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.2.6...HEAD
+[0.2.6]: https://github.com/ausardcompany/alexi/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/ausardcompany/alexi/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/ausardcompany/alexi/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/ausardcompany/alexi/compare/v0.2.2...v0.2.3
