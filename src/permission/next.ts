@@ -25,7 +25,7 @@ export function matchesPattern(pattern: string, targetPath: string): boolean {
     .replace(/{{GLOBSTAR}}/g, '.*')
     .replace(/\?/g, '.');
 
-  const regex = new RegExp(`^${regexPattern});
+  const regex = new RegExp(`^${regexPattern}$`);
   return regex.test(targetPath);
 }
 
@@ -75,8 +75,8 @@ function expand(pattern: string): string {
  * Permission configuration parsing and serialization utilities
  * Handles null sentinels for deletion in config patches
  */
-export namespace PermissionNext {
-  export function fromConfig(config: PermissionConfig): Ruleset {
+export const PermissionNext = {
+  fromConfig(config: PermissionConfig): Ruleset {
     const ruleset: Ruleset = [];
     for (const [key, value] of Object.entries(config)) {
       if (typeof value === 'string') {
@@ -88,7 +88,9 @@ export namespace PermissionNext {
         continue;
       }
       // null is a delete sentinel — skip it (it only appears in patches, not in stored config)
-      if (value === null) continue;
+      if (value === null) {
+        continue;
+      }
       ruleset.push(
         // Filter out null entries (delete sentinels) — they don't represent real rules
         ...Object.entries(value)
@@ -101,9 +103,9 @@ export namespace PermissionNext {
       );
     }
     return ruleset;
-  }
+  },
 
-  export function toConfig(rules: Ruleset): PermissionConfig {
+  toConfig(rules: Ruleset): PermissionConfig {
     const result: PermissionConfig = {};
     for (const rule of rules) {
       const existing = result[rule.permission];
@@ -124,5 +126,5 @@ export namespace PermissionNext {
       }
     }
     return result;
-  }
-}
+  },
+};
