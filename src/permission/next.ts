@@ -25,7 +25,7 @@ export function matchesPattern(pattern: string, targetPath: string): boolean {
     .replace(/{{GLOBSTAR}}/g, '.*')
     .replace(/\?/g, '.');
 
-  const regex = new RegExp(`^${regexPattern}$`);
+  const regex = new RegExp(`^${regexPattern});
   return regex.test(targetPath);
 }
 
@@ -43,4 +43,86 @@ export function evaluatePatternRules(
     }
   }
   return undefined;
+}
+
+/**
+ * Permission configuration types and utilities
+ */
+export type Action = 'allow' | 'deny' | 'ask';
+
+export type PermissionRule = Action | { [pattern: string]: Action | null } | null;
+
+export interface PermissionConfig {
+  [permission: string]: PermissionRule;
+}
+
+export interface Rule {
+  permission: string;
+  pattern: string;
+  action: Action;
+}
+
+export type Ruleset = Rule[];
+
+/**
+ * Expand pattern shorthand (currently just returns the pattern as-is)
+ */
+function expand(pattern: string): string {
+  return pattern;
+}
+
+/**
+ * Permission configuration parsing and serialization utilities
+ * Handles null sentinels for deletion in config patches
+ */
+export namespace PermissionNext {
+  export function fromConfig(config: PermissionConfig): Ruleset {
+    const ruleset: Ruleset = [];
+    for (const [key, value] of Object.entries(config)) {
+      if (typeof value === 'string') {
+        ruleset.push({
+          permission: key,
+          pattern: '*',
+          action: value,
+        });
+        continue;
+      }
+      // null is a delete sentinel — skip it (it only appears in patches, not in stored config)
+      if (value === null) continue;
+      ruleset.push(
+        // Filter out null entries (delete sentinels) — they don't represent real rules
+        ...Object.entries(value)
+          .filter(([, action]) => action !== null)
+          .map(([pattern, action]) => ({
+            permission: key,
+            pattern: expand(pattern),
+            action: action as Action,
+          }))
+      );
+    }
+    return ruleset;
+  }
+
+  export function toConfig(rules: Ruleset): PermissionConfig {
+    const result: PermissionConfig = {};
+    for (const rule of rules) {
+      const existing = result[rule.permission];
+      if (existing === undefined || existing === null) {
+        // Use object format to avoid replacing existing granular rules
+        // when merged via updateGlobal (e.g. { read: "allow" } would wipe
+        // { read: { "*": "ask", "src/*": "allow" } })
+        result[rule.permission] = { [rule.pattern]: rule.action };
+      } else if (typeof existing === 'string') {
+        // Convert string to object format and add new pattern
+        result[rule.permission] = {
+          '*': existing,
+          [rule.pattern]: rule.action,
+        };
+      } else {
+        // Add to existing object
+        existing[rule.pattern] = rule.action;
+      }
+    }
+    return result;
+  }
 }
