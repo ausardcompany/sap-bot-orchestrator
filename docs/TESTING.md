@@ -230,6 +230,90 @@ All file operation tools have comprehensive test coverage:
 | `glob` | `tests/tool/tools/glob.test.ts` | 16+ cases |
 | `grep` | `tests/tool/tools/grep.test.ts` | 20+ cases |
 
+### Permission System Test Coverage
+
+The permission system has comprehensive test coverage for pattern matching and configuration handling:
+
+| Component | Test File | Test Cases |
+|-----------|-----------|------------|
+| Pattern Matching | `src/permission/next.test.ts` | 8+ cases |
+| Rule Evaluation | `src/permission/next.test.ts` | 4+ cases |
+| Null Sentinel Handling | `src/permission/next.test.ts` | 6+ cases |
+
+#### Testing Permission Pattern Matching
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { matchesPattern, evaluatePatternRules } from './permission/next.js';
+
+describe('matchesPattern', () => {
+  it('matches exact paths', () => {
+    expect(matchesPattern('src/file.ts', 'src/file.ts')).toBe(true);
+    expect(matchesPattern('src/file.ts', 'src/other.ts')).toBe(false);
+  });
+
+  it('matches single wildcard patterns', () => {
+    expect(matchesPattern('*.md', 'README.md')).toBe(true);
+    expect(matchesPattern('*.md', 'src/README.md')).toBe(false);
+    expect(matchesPattern('src/*.ts', 'src/index.ts')).toBe(true);
+  });
+
+  it('matches globstar patterns', () => {
+    expect(matchesPattern('src/**/*.ts', 'src/deep/nested/file.ts')).toBe(true);
+    expect(matchesPattern('**/*.md', 'any/path/file.md')).toBe(true);
+  });
+
+  it('handles universal wildcard', () => {
+    expect(matchesPattern('*', 'anything')).toBe(true);
+  });
+});
+```
+
+#### Testing Null Sentinel Handling
+
+The permission system uses `null` as a delete sentinel for removing patterns from configuration:
+
+```typescript
+import { PermissionNext } from './permission/next.js';
+
+describe('PermissionNext null sentinel handling', () => {
+  it('fromConfig - null entries in PermissionObject are skipped', () => {
+    const config = { bash: { '*': 'ask' as const, 'npm *': null } };
+    const rules = PermissionNext.fromConfig(config);
+    // null is a delete sentinel — only the non-null entry should produce a rule
+    expect(rules).toEqual([{ permission: 'bash', pattern: '*', action: 'ask' }]);
+  });
+
+  it('fromConfig - null top-level PermissionRule is skipped', () => {
+    const config = { bash: null };
+    const rules = PermissionNext.fromConfig(config);
+    expect(rules).toEqual([]);
+  });
+
+  it('fromConfig - handles mixed valid and null entries', () => {
+    const config = {
+      read: { '*': 'ask' as const, 'src/*': 'allow' as const, 'test/*': null },
+      write: 'deny' as const,
+    };
+    const rules = PermissionNext.fromConfig(config);
+    expect(rules).toEqual([
+      { permission: 'read', pattern: '*', action: 'ask' },
+      { permission: 'read', pattern: 'src/*', action: 'allow' },
+      { permission: 'write', pattern: '*', action: 'deny' },
+    ]);
+  });
+
+  it('toConfig - merges multiple patterns for same permission', () => {
+    const rules = [
+      { permission: 'read', pattern: '*', action: 'ask' as const },
+      { permission: 'read', pattern: 'src/*', action: 'allow' as const },
+    ];
+    const result = PermissionNext.toConfig(rules);
+    expect(result).toEqual({ read: { '*': 'ask', 'src/*': 'allow' } });
+  });
+});
+```
+
 ### TUI Command Test Coverage
 
 TUI slash commands are tested through the `useCommands` hook with React context mocking:

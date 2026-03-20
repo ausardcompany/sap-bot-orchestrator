@@ -661,6 +661,173 @@ alexi config show
 2. Check file encoding (must be UTF-8)
 3. Use `/memory` command to list loaded files
 
+## Permission Configuration
+
+Alexi includes a granular permission system for controlling tool access to file operations, command execution, and other sensitive actions.
+
+### Permission Configuration Schema
+
+```typescript
+export type Action = 'allow' | 'deny' | 'ask';
+
+export type PermissionRule = Action | { [pattern: string]: Action | null } | null;
+
+export interface PermissionConfig {
+  [permission: string]: PermissionRule;
+}
+
+export interface Rule {
+  permission: string;
+  pattern: string;
+  action: Action;
+}
+```
+
+### Permission Patterns
+
+The permission system supports glob patterns for fine-grained control:
+
+```typescript
+import { matchesPattern } from './permission/next.js';
+
+// Exact match
+matchesPattern('src/file.ts', 'src/file.ts'); // true
+
+// Wildcard patterns
+matchesPattern('*.md', 'README.md'); // true
+matchesPattern('src/*.ts', 'src/index.ts'); // true
+
+// Globstar patterns
+matchesPattern('src/**/*.ts', 'src/deep/nested/file.ts'); // true
+matchesPattern('**/*.md', 'any/path/file.md'); // true
+
+// Universal wildcard
+matchesPattern('*', 'anything'); // true
+```
+
+### Permission Configuration Examples
+
+#### Simple String Format
+
+```json
+{
+  "read": "allow",
+  "write": "ask",
+  "bash": "deny"
+}
+```
+
+#### Granular Pattern Format
+
+```json
+{
+  "read": {
+    "*": "ask",
+    "src/*": "allow",
+    "**/*.md": "allow"
+  },
+  "write": {
+    "*": "ask",
+    "src/**/*.ts": "allow",
+    "dist/**": "deny"
+  },
+  "bash": {
+    "*": "ask",
+    "npm *": "allow",
+    "rm -rf *": "deny"
+  }
+}
+```
+
+### Null Sentinels for Deletion
+
+The permission system uses `null` as a delete sentinel in configuration patches:
+
+```typescript
+import { PermissionNext } from './permission/next.js';
+
+// Configuration with null sentinels
+const config = {
+  bash: {
+    '*': 'ask',
+    'npm *': null  // Delete sentinel - removes this pattern
+  }
+};
+
+// fromConfig skips null entries
+const rules = PermissionNext.fromConfig(config);
+// Result: [{ permission: 'bash', pattern: '*', action: 'ask' }]
+```
+
+Null sentinels are used when:
+- Removing specific patterns from configuration
+- Patching configuration updates
+- Merging configuration changes
+
+### Permission API
+
+```typescript
+import { PermissionNext } from './permission/next.js';
+
+// Convert configuration to ruleset
+const rules = PermissionNext.fromConfig({
+  read: { '*': 'ask', 'src/*': 'allow' },
+  write: 'deny'
+});
+
+// Convert ruleset back to configuration
+const config = PermissionNext.toConfig([
+  { permission: 'read', pattern: '*', action: 'ask' },
+  { permission: 'read', pattern: 'src/*', action: 'allow' },
+  { permission: 'write', pattern: '*', action: 'deny' }
+]);
+```
+
+### Evaluating Permission Rules
+
+```typescript
+import { evaluatePatternRules } from './permission/next.js';
+
+const rules = [
+  { pattern: '*.secret', action: 'deny' },
+  { pattern: '*.md', action: 'allow' },
+  { pattern: '*', action: 'ask' }
+];
+
+// Rules are evaluated in order, first match wins
+evaluatePatternRules(rules, 'config.secret'); // 'deny'
+evaluatePatternRules(rules, 'README.md');     // 'allow'
+evaluatePatternRules(rules, 'other.txt');     // 'ask'
+evaluatePatternRules(rules, 'file.ts');       // undefined (no match)
+```
+
+### Agentic Mode Permissions
+
+In agentic mode, Alexi automatically configures high-priority permission rules:
+
+```typescript
+// Automatic write permissions for workdir
+{
+  id: 'agentic-allow-write',
+  priority: 200,
+  description: 'Allow writing files in workdir for agentic mode',
+  actions: ['write'],
+  paths: ['<workdir>/**'],
+  decision: 'allow'
+}
+
+// Automatic execute permissions
+{
+  id: 'agentic-allow-execute',
+  priority: 200,
+  description: 'Allow executing commands for agentic mode',
+  actions: ['execute'],
+  decision: 'allow'
+}
+```
+
+These high-priority rules (priority 200) override default "ask" prompts, enabling autonomous operation within the project directory.
+
 ## Related Documentation
 
 - [API Documentation](API.md) - CLI commands and TypeScript APIs

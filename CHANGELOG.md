@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-03-20
+
+### Added
+
+- Null sentinel handling in permission configuration system
+  - PermissionNext.fromConfig now skips null entries (delete sentinels)
+  - PermissionNext.toConfig converts rules to configuration format
+  - Supports granular permission patterns with null removal
+  - Comprehensive test coverage for null sentinel edge cases
+
+### Changed
+
+- CI Auto-Fix workflow improvements for deterministic fixes
+  - Added two-stage fix process: quick fixes followed by AI agent fixes
+  - Quick fixes run lint:fix and format before agent intervention
+  - Added immediate commit and push after quick fixes succeed
+  - Added re-verification step after quick fixes to skip agent if not needed
+  - Prompt files from master branch fetched automatically for agent step
+  - ci-failures.md preserved across checkout to prevent data loss
+  - Fixed zero-width space character in workflow expressions
+  - Enhanced PR comment logic to distinguish quick-fix-only vs full agent fixes
+
+- Documentation workflow expression syntax fix
+  - Removed zero-width space character from variable interpolation
+
+### Fixed
+
+- Permission pattern matching now correctly handles unterminated template literals
+  - Converted namespace export to const export for matchesPattern function
+  - Ensures proper regex pattern generation for glob patterns
+
 ## [0.2.6] - 2026-03-19
 
 ### Added
@@ -186,7 +217,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rule-based configuration system
 - Autonomous self-updating from upstream repositories
 
-[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.2.7...HEAD
+[0.2.7]: https://github.com/ausardcompany/alexi/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/ausardcompany/alexi/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/ausardcompany/alexi/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/ausardcompany/alexi/compare/v0.2.3...v0.2.4

@@ -452,10 +452,13 @@ Pull requests trigger automated workflows:
    - Generates Mermaid diagrams
    - Updates CHANGELOG.md
 3. **CI Auto-Fix** (for auto/* branches): Automatically fixes CI failures
-   - Collects failure logs
-   - Applies quick fixes (lint:fix, format)
-   - Uses Alexi agent to fix remaining issues
-   - Verifies fixes and commits changes
+   - Two-stage fix process:
+     - Stage 1: Quick fixes with lint:fix and format (deterministic)
+     - Stage 2: AI agent fixes for complex issues (intelligent)
+   - Collects failure logs with exact error messages
+   - Applies targeted fixes and verifies them
+   - Commits changes automatically
+   - Rate-limited to 2 runs per branch per day
 
 The documentation update workflow will automatically:
 - Detect which documentation files need updating based on changed code
@@ -464,12 +467,17 @@ The documentation update workflow will automatically:
 - Ensure documentation stays in sync with code
 
 For auto/* branches, if CI fails, the CI Auto-Fix workflow will:
-- Analyze failure logs with exact error messages
-- Apply deterministic fixes (linting, formatting)
-- Use Alexi agent mode to fix complex issues
-- Verify all fixes pass the original checks
-- Commit fixes back to the PR branch
-- Rate-limited to 2 runs per branch per day
+1. Run deterministic quick fixes (lint:fix, format)
+2. Commit and push quick fixes immediately
+3. Re-verify all originally-failed checks
+4. If all checks pass, skip agent step and post success comment
+5. If checks still fail:
+   - Fetch prompt files from master branch
+   - Analyze failure logs with exact error messages
+   - Use Alexi agent mode to fix complex issues
+   - Verify all fixes pass the original checks
+   - Commit fixes back to the PR branch
+6. Rate-limited to 2 runs per branch per day to prevent loops
 
 ### Code Review
 
