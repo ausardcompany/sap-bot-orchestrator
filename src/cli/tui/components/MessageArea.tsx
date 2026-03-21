@@ -1,7 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 
-import { MessageBubble } from './MessageBubble.js';
 import { MarkdownRenderer } from './MarkdownRenderer.js';
 import { Spinner } from './Spinner.js';
 import { ToolCallBlock } from './ToolCallBlock.js';
@@ -27,8 +26,6 @@ export interface MessageDisplay {
 }
 
 export interface MessageAreaProps {
-  /** All completed messages in the conversation */
-  messages: MessageDisplay[];
   /** Currently streaming text (live, incomplete assistant response) */
   streamingText: string;
   /** Whether streaming is in progress */
@@ -44,18 +41,15 @@ export interface MessageAreaProps {
 // ---------------------------------------------------------------------------
 
 /**
- * MessageArea — scrollable conversation display.
+ * MessageArea — streaming-only conversation viewport.
  *
- * Phase 6 integration:
- * - Renders completed messages as MessageBubbles with associated ToolCallBlock components
- * - Shows active tool calls as ToolCallBlock components with live status
- * - Shows streaming text as a live "assistant" bubble with markdown rendering
- * - Auto-scrolls: newest content always visible (Ink handles this with flexGrow)
- *
- * Phase 12 will wrap completed messages in <Static> for perf.
+ * Completed messages are rendered by `<Static>` in App.tsx and scroll into
+ * terminal scrollback. This component only renders:
+ * - Active tool calls with live status
+ * - Streaming assistant text with markdown rendering
+ * - Spinner placeholder while waiting for first chunk
  */
 export function MessageArea({
-  messages,
   streamingText,
   isStreaming,
   activeToolCalls,
@@ -67,41 +61,6 @@ export function MessageArea({
 
   return (
     <Box flexDirection="column" flexGrow={1} overflow="hidden">
-      {/* Completed messages */}
-      {messages.map((msg, idx) => (
-        <React.Fragment key={msg.id}>
-          {/* Separator between messages */}
-          {idx > 0 && (
-            <Box paddingX={1}>
-              <Text dimColor>{'─'.repeat(40)}</Text>
-            </Box>
-          )}
-          <MessageBubble
-            role={msg.role}
-            content={msg.content}
-            agent={msg.agent}
-            model={msg.model}
-            tokens={msg.tokens}
-            timestamp={msg.timestamp}
-            images={msg.images}
-          />
-          {/* Completed tool calls for this message */}
-          {msg.toolCalls.map((tc) => (
-            <ToolCallBlock
-              key={tc.id}
-              toolName={tc.toolName}
-              params={tc.params}
-              status={tc.status}
-              output={tc.output}
-              error={tc.error}
-              isExpanded={tc.isExpanded}
-              onToggle={() => onToggleToolCall(tc.id)}
-              diff={tc.diff}
-            />
-          ))}
-        </React.Fragment>
-      ))}
-
       {/* Active tool calls */}
       {activeToolCalls.map((tc) => (
         <ToolCallBlock
@@ -120,12 +79,6 @@ export function MessageArea({
       {/* Streaming text (live assistant response) */}
       {isStreaming && streamingText && (
         <Box paddingX={1} flexDirection="column">
-          {/* Separator from previous messages */}
-          {messages.length > 0 && (
-            <Box>
-              <Text dimColor>{'─'.repeat(40)}</Text>
-            </Box>
-          )}
           <Box>
             <Text color={colors.success} bold>
               assistant ❯

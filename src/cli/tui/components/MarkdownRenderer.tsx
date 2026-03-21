@@ -35,7 +35,7 @@ function createMarkedInstance(width: number): Marked {
       reflowText: true,
       showSectionPrefix: false,
       tab: 2,
-      width: Math.max(40, width - 4), // leave room for padding/borders
+      width, // caller already accounts for padding chain
     })
   );
 }
@@ -55,9 +55,13 @@ function createMarkedInstance(width: number): Marked {
 export function MarkdownRenderer({
   markdown,
   isPartial,
+  maxWidth,
 }: MarkdownRendererProps): React.JSX.Element {
   const { stdout } = useStdout();
   const columns = stdout?.columns ?? 80;
+  // Full padding chain: paddingX(1)=2 + paddingLeft(2)=2 + paddingX(1)=2 = 6 chars
+  // Plus 2 chars safety margin = 8
+  const effectiveWidth = maxWidth ?? Math.max(40, columns - 8);
 
   const rendered = useMemo(() => {
     const source = isPartial ? closePartialFences(markdown) : markdown;
@@ -66,11 +70,11 @@ export function MarkdownRenderer({
       return '';
     }
 
-    const instance = createMarkedInstance(columns);
+    const instance = createMarkedInstance(effectiveWidth);
     const result = instance.parse(source, { async: false });
     // Trim trailing newline that marked typically appends
     return result.replace(/\n$/, '');
-  }, [markdown, isPartial, columns]);
+  }, [markdown, isPartial, effectiveWidth]);
 
   return <Text>{rendered}</Text>;
 }

@@ -75,4 +75,19 @@ describe('MarkdownRenderer', () => {
     const { lastFrame } = render(<MarkdownRenderer markdown="# My Header" isPartial={false} />);
     expect(lastFrame()).toContain('My Header');
   });
+
+  it('respects maxWidth prop', () => {
+    const { lastFrame } = render(
+      <MarkdownRenderer markdown="Hello world" isPartial={false} maxWidth={60} />
+    );
+    expect(lastFrame()).toContain('Hello world');
+  });
+
+  it('renders with maxWidth without crashing on code blocks', () => {
+    const md = '```js\nconst longVar = "this is a somewhat long line of code";\n```';
+    const { lastFrame } = render(
+      <MarkdownRenderer markdown={md} isPartial={false} maxWidth={50} />
+    );
+    expect(lastFrame()).toContain('longVar');
+  });
 });

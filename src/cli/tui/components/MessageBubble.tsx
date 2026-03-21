@@ -67,9 +67,11 @@ export function MessageBubble({
         )}
         <Box>
           <Text color={colors.primary} bold>
-            You ❯{' '}
+            You ❯
           </Text>
-          <Text>{content}</Text>
+        </Box>
+        <Box paddingLeft={2}>
+          <Text wrap="wrap">{content}</Text>
         </Box>
         <Box>
           <Text dimColor> {timeStr}</Text>

@@ -53,6 +53,7 @@ type ChatAction =
   | { type: 'SET_STREAMING'; payload: boolean }
   | { type: 'APPEND_STREAM_TEXT'; payload: string }
   | { type: 'CLEAR_STREAM_TEXT' }
+  | { type: 'CLEAR_COMPLETED_TOOL_CALLS' }
   | { type: 'ADD_TOOL_CALL'; payload: ToolCallState }
   | { type: 'UPDATE_TOOL_CALL'; payload: { id: string } & Partial<ToolCallState> }
   | { type: 'TOGGLE_TOOL_CALL_EXPANSION'; payload: string }
@@ -85,6 +86,9 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
     case 'CLEAR_STREAM_TEXT':
       return { ...state, streamingText: '' };
+
+    case 'CLEAR_COMPLETED_TOOL_CALLS':
+      return { ...state, completedToolCalls: [] };
 
     case 'ADD_TOOL_CALL':
       return { ...state, activeToolCalls: [...state.activeToolCalls, action.payload] };
@@ -147,6 +151,7 @@ export interface ChatContextValue extends ChatState {
   setStreaming: (streaming: boolean) => void;
   appendStreamText: (text: string) => void;
   clearStreamText: () => void;
+  clearCompletedToolCalls: () => void;
   addToolCall: (toolCall: ToolCallState) => void;
   updateToolCall: (id: string, updates: Partial<ToolCallState>) => void;
   toggleToolCallExpansion: (id: string) => void;
@@ -179,6 +184,10 @@ export function ChatProvider({ children }: ChatProviderProps) {
 
   const clearStreamText = useCallback(() => {
     dispatch({ type: 'CLEAR_STREAM_TEXT' });
+  }, []);
+
+  const clearCompletedToolCalls = useCallback(() => {
+    dispatch({ type: 'CLEAR_COMPLETED_TOOL_CALLS' });
   }, []);
 
   const addToolCall = useCallback((toolCall: ToolCallState) => {
@@ -214,6 +223,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
     setStreaming,
     appendStreamText,
     clearStreamText,
+    clearCompletedToolCalls,
     addToolCall,
     updateToolCall,
     toggleToolCallExpansion,

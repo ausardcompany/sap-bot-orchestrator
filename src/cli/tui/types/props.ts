@@ -75,4 +75,6 @@ export interface MarkdownRendererProps {
   markdown: string;
   /** Whether this is a partial (still streaming) render */
   isPartial: boolean;
+  /** Override effective width for markdown rendering (defaults to columns - 8) */
+  maxWidth?: number;
 }
