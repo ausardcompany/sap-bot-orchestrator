@@ -3,18 +3,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from 'ink-testing-library';
 
 import { MessageArea } from '../../../src/cli/tui/components/MessageArea.js';
-import type { MessageDisplay } from '../../../src/cli/tui/components/MessageArea.js';
 import type { ToolCallState } from '../../../src/cli/tui/context/ChatContext.js';
 import { ThemeProvider } from '../../../src/cli/tui/context/ThemeContext.js';
-
-const makeMessage = (overrides: Partial<MessageDisplay> = {}): MessageDisplay => ({
-  id: 'msg-1',
-  role: 'user',
-  content: 'Hello world',
-  toolCalls: [],
-  timestamp: 1700000000000,
-  ...overrides,
-});
 
 const makeToolCall = (overrides: Partial<ToolCallState> = {}): ToolCallState => ({
   id: 'tc-1',
@@ -35,7 +25,6 @@ describe('MessageArea', () => {
     const { lastFrame } = render(
       <ThemeProvider>
         <MessageArea
-          messages={[]}
           streamingText=""
           isStreaming={false}
           activeToolCalls={[]}
@@ -46,62 +35,10 @@ describe('MessageArea', () => {
     expect(lastFrame()).toBeDefined();
   });
 
-  it('renders user messages', () => {
-    const messages = [makeMessage({ content: 'Hello from user', role: 'user' })];
-    const { lastFrame } = render(
-      <ThemeProvider>
-        <MessageArea
-          messages={messages}
-          streamingText=""
-          isStreaming={false}
-          activeToolCalls={[]}
-          onToggleToolCall={vi.fn()}
-        />
-      </ThemeProvider>
-    );
-    expect(lastFrame()).toContain('Hello from user');
-    expect(lastFrame()).toContain('You');
-  });
-
-  it('renders assistant messages', () => {
-    const messages = [
-      makeMessage({ content: 'Assistant reply', role: 'assistant', agent: 'code' }),
-    ];
-    const { lastFrame } = render(
-      <ThemeProvider>
-        <MessageArea
-          messages={messages}
-          streamingText=""
-          isStreaming={false}
-          activeToolCalls={[]}
-          onToggleToolCall={vi.fn()}
-        />
-      </ThemeProvider>
-    );
-    expect(lastFrame()).toContain('Assistant reply');
-  });
-
-  it('renders system messages', () => {
-    const messages = [makeMessage({ content: 'System notice', role: 'system' })];
-    const { lastFrame } = render(
-      <ThemeProvider>
-        <MessageArea
-          messages={messages}
-          streamingText=""
-          isStreaming={false}
-          activeToolCalls={[]}
-          onToggleToolCall={vi.fn()}
-        />
-      </ThemeProvider>
-    );
-    expect(lastFrame()).toContain('System notice');
-  });
-
   it('renders streaming text when isStreaming is true', () => {
     const { lastFrame } = render(
       <ThemeProvider>
         <MessageArea
-          messages={[]}
           streamingText="partial response..."
           isStreaming={true}
           activeToolCalls={[]}
@@ -116,7 +53,6 @@ describe('MessageArea', () => {
     const { lastFrame } = render(
       <ThemeProvider>
         <MessageArea
-          messages={[]}
           streamingText="should not show"
           isStreaming={false}
           activeToolCalls={[]}
@@ -131,7 +67,6 @@ describe('MessageArea', () => {
     const { lastFrame } = render(
       <ThemeProvider>
         <MessageArea
-          messages={[]}
           streamingText=""
           isStreaming={true}
           activeToolCalls={[]}
@@ -147,7 +82,6 @@ describe('MessageArea', () => {
     const { lastFrame } = render(
       <ThemeProvider>
         <MessageArea
-          messages={[]}
           streamingText=""
           isStreaming={false}
           activeToolCalls={toolCalls}
@@ -158,26 +92,37 @@ describe('MessageArea', () => {
     expect(lastFrame()).toContain('bash');
   });
 
-  it('renders multiple messages in order', () => {
-    const messages: MessageDisplay[] = [
-      makeMessage({ id: 'msg-1', content: 'First message', role: 'user', timestamp: 1 }),
-      makeMessage({ id: 'msg-2', content: 'Second message', role: 'assistant', timestamp: 2 }),
+  it('renders streaming assistant label when streaming', () => {
+    const { lastFrame } = render(
+      <ThemeProvider>
+        <MessageArea
+          streamingText="hello"
+          isStreaming={true}
+          activeToolCalls={[]}
+          onToggleToolCall={vi.fn()}
+        />
+      </ThemeProvider>
+    );
+    expect(lastFrame()).toContain('assistant');
+    expect(lastFrame()).toContain('❯');
+  });
+
+  it('renders multiple active tool calls', () => {
+    const toolCalls = [
+      makeToolCall({ id: 'tc-1', toolName: 'read', status: 'running' }),
+      makeToolCall({ id: 'tc-2', toolName: 'write', status: 'pending' }),
     ];
-    const frame =
-      render(
-        <ThemeProvider>
-          <MessageArea
-            messages={messages}
-            streamingText=""
-            isStreaming={false}
-            activeToolCalls={[]}
-            onToggleToolCall={vi.fn()}
-          />
-        </ThemeProvider>
-      ).lastFrame() ?? '';
-    const firstPos = frame.indexOf('First message');
-    const secondPos = frame.indexOf('Second message');
-    expect(firstPos).toBeGreaterThanOrEqual(0);
-    expect(secondPos).toBeGreaterThan(firstPos);
+    const { lastFrame } = render(
+      <ThemeProvider>
+        <MessageArea
+          streamingText=""
+          isStreaming={true}
+          activeToolCalls={toolCalls}
+          onToggleToolCall={vi.fn()}
+        />
+      </ThemeProvider>
+    );
+    expect(lastFrame()).toContain('read');
+    expect(lastFrame()).toContain('write');
   });
 });
