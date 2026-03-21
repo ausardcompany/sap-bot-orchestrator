@@ -1,7 +1,14 @@
 /**
  * Permission Pattern Matching Utilities
  * Supports glob patterns with wildcards for granular permission control
+ * Enhanced with cross-subagent permission resolution
  */
+
+import { z } from 'zod';
+import { nanoid } from 'nanoid';
+import { drainCovered, DeniedError as DrainDeniedError } from './drain.js';
+import { matchPattern } from './wildcard.js';
+import { defineEvent } from '../bus/index.js';
 
 /**
  * Evaluates a permission pattern against a path.
@@ -128,3 +135,147 @@ export const PermissionNext = {
     return result;
   },
 };
+
+// ============ Session Management for Cross-Subagent Permissions ============
+
+export interface Request {
+  id: string;
+  sessionID: string;
+  permission: string;
+  patterns: string[];
+}
+
+const RuleSchema = z.object({
+  permission: z.string(),
+  pattern: z.string(),
+  action: z.enum(['allow', 'deny', 'ask']),
+});
+
+const Identifier = {
+  schema: (prefix: string) => z.string().refine((id) => id.startsWith(prefix)),
+};
+
+// Session state for managing pending permissions
+interface SessionState {
+  pending: Record<
+    string,
+    {
+      info: Request;
+      ruleset: Ruleset;
+      resolve: () => void;
+      reject: (e: any) => void;
+    }
+  >;
+  approved: Ruleset;
+}
+
+const sessionState: SessionState = {
+  pending: {},
+  approved: [],
+};
+
+// Permission events for cross-subagent coordination
+export const Event = {
+  Replied: defineEvent(
+    'permission.next.replied',
+    z.object({
+      sessionID: z.string(),
+      requestID: z.string(),
+      reply: z.enum(['approve', 'reject']),
+    })
+  ),
+};
+
+export { DeniedError } from './drain.js';
+
+/**
+ * Evaluate a permission against patterns using rulesets
+ */
+export function evaluate(
+  permission: string,
+  pattern: string,
+  ruleset: Ruleset,
+  approved: Ruleset
+): { action: 'allow' | 'deny' | 'prompt' } {
+  // Check approved rules first
+  for (const rule of approved) {
+    if (rule.permission === permission && matchPattern(rule.pattern, pattern).matched) {
+      return { action: rule.action === 'ask' ? 'prompt' : (rule.action as 'allow' | 'deny') };
+    }
+  }
+
+  // Check existing ruleset
+  for (const rule of ruleset) {
+    if (rule.permission === permission && matchPattern(rule.pattern, pattern).matched) {
+      return { action: rule.action === 'ask' ? 'prompt' : (rule.action as 'allow' | 'deny') };
+    }
+  }
+
+  // Default to prompt
+  return { action: 'prompt' };
+}
+
+/**
+ * Request permission with cross-subagent awareness
+ */
+export async function request(info: Request, ruleset: Ruleset): Promise<void> {
+  return new Promise((resolve, reject) => {
+    sessionState.pending[info.id] = {
+      info,
+      ruleset,
+      resolve,
+      reject,
+    };
+  });
+}
+
+/**
+ * Save always-rules and trigger cross-subagent drain
+ */
+export async function saveAlwaysRules(input: {
+  requestID: string;
+  rules: Array<{ permission: string; pattern: string; action: Action }>;
+}): Promise<void> {
+  const validated = z
+    .object({
+      requestID: Identifier.schema('permission'),
+      rules: z.array(RuleSchema),
+    })
+    .parse(input);
+
+  const newRules = validated.rules.filter(
+    (rule) => !sessionState.approved.some((r) => r.permission === rule.permission && r.pattern === rule.pattern)
+  );
+
+  if (newRules.length > 0) {
+    sessionState.approved.push(...newRules);
+    // Here you would save to config - omitted for now as it depends on config system
+    // await Config.updateGlobal({ permission: PermissionNext.toConfig(newRules) }, { dispose: false })
+  }
+
+  // Auto-resolve sibling pending permissions covered by new rules
+  await drainCovered(
+    sessionState.pending,
+    sessionState.approved,
+    evaluate,
+    Event,
+    DrainDeniedError,
+    validated.requestID
+  );
+}
+
+/**
+ * Get current session state (for testing/debugging)
+ */
+export function getSessionState(): SessionState {
+  return sessionState;
+}
+
+/**
+ * Clear session state (for testing)
+ */
+export function clearSessionState(): void {
+  sessionState.pending = {};
+  sessionState.approved = [];
+}
+

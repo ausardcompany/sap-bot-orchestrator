@@ -121,3 +121,31 @@ export function matchCommand(command: string, allowedCommands: string[]): boolea
     return false;
   });
 }
+
+/**
+ * Wildcard namespace for compatibility with drain module
+ */
+export namespace Wildcard {
+  /**
+   * Match a value against a glob-style pattern
+   * Supports * for any characters and ? for single character
+   */
+  export function match(value: string, pattern: string): boolean {
+    return matchPattern(pattern, value).matched;
+  }
+
+  /**
+   * Check if a pattern covers another pattern (is more general)
+   */
+  export function covers(general: string, specific: string): boolean {
+    // A pattern covers another if anything matching specific also matches general
+    if (general === specific) return true;
+    if (general === '*') return true;
+
+    // Simple heuristic: count wildcards, more wildcards = more general
+    const generalWildcards = (general.match(/\*/g) || []).length;
+    const specificWildcards = (specific.match(/\*/g) || []).length;
+
+    return generalWildcards > specificWildcards && match(specific.replace(/\*/g, 'x'), general);
+  }
+}
