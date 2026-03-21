@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Box, Static, Text, useApp, useStdout } from 'ink';
+import { Box, useApp, useStdout } from 'ink';
 
 import { ThemeProvider, useTheme } from './context/ThemeContext.js';
 import { SessionProvider, useSession } from './context/SessionContext.js';
@@ -33,8 +33,7 @@ import { StatusBar } from './components/StatusBar.js';
 import { InputBox } from './components/InputBox.js';
 import { MessageArea } from './components/MessageArea.js';
 import type { MessageDisplay } from './components/MessageArea.js';
-import { MessageBubble } from './components/MessageBubble.js';
-import { ToolCallBlock } from './components/ToolCallBlock.js';
+// MessageBubble and ToolCallBlock are rendered inside MessageArea
 
 // ---------------------------------------------------------------------------
 // useTerminalSize — reactive terminal dimensions
@@ -215,102 +214,65 @@ function AppLayout(): React.JSX.Element {
   const agentColor = theme.colors.agents[agent as AgentName] ?? theme.colors.primary;
 
   return (
-    <>
-      {/* Completed messages — rendered once, scroll into terminal scrollback */}
-      <Static items={messages}>
-        {(msg, idx) => (
-          <Box key={msg.id} flexDirection="column">
-            {idx > 0 && (
-              <Box paddingX={1}>
-                <Text dimColor>{'─'.repeat(40)}</Text>
-              </Box>
-            )}
-            <MessageBubble
-              role={msg.role}
-              content={msg.content}
-              agent={msg.agent}
-              model={msg.model}
-              tokens={msg.tokens}
-              timestamp={msg.timestamp}
-              images={msg.images}
-            />
-            {msg.toolCalls.map((tc) => (
-              <ToolCallBlock
-                key={tc.id}
-                toolName={tc.toolName}
-                params={tc.params}
-                status={tc.status}
-                output={tc.output}
-                error={tc.error}
-                isExpanded={tc.isExpanded}
-                onToggle={() => chat.toggleToolCallExpansion(tc.id)}
-                diff={tc.diff}
-              />
-            ))}
-          </Box>
-        )}
-      </Static>
-
-      {/* Dynamic viewport — always visible at bottom of terminal */}
-      <Box flexDirection="column" height={rows}>
-        {/* Header — height: 3 */}
-        <Box
-          height={3}
-          borderStyle={theme.borderStyle}
-          borderColor={theme.colors.border}
-          paddingX={1}
-        >
-          <Header
-            model={model}
-            agent={agent}
-            agentColor={agentColor}
-            sessionId={sessionId}
-            tokenCount={tokenCount}
-            autoRoute={false}
-          />
-        </Box>
-
-        {/* Dialog overlay replaces main content when a dialog is open */}
-        {dialogIsOpen ? (
-          <Box flexDirection="column" flexGrow={1}>
-            <DialogHost />
-          </Box>
-        ) : (
-          <>
-            {/* Streaming area — only active content */}
-            <MessageArea
-              streamingText={chat.streamingText}
-              isStreaming={chat.isStreaming}
-              activeToolCalls={chat.activeToolCalls}
-              onToggleToolCall={chat.toggleToolCallExpansion}
-            />
-
-            {/* Input Box — flexShrink={0} prevents squeezing by flex algorithm */}
-            <Box flexShrink={0}>
-              <InputBox
-                agent={agent}
-                agentColor={agentColor}
-                disabled={chat.isStreaming}
-                onSubmit={handleSubmit}
-                isFocused={!keybindState.leaderActive}
-                commands={commands}
-              />
-            </Box>
-
-            {/* Status Bar — flexShrink={0} prevents squeezing by flex algorithm */}
-            <Box flexShrink={0}>
-              <StatusBar
-                agent={agent}
-                model={model}
-                cost={{ totalCost: cost.totalCost, currency: cost.currency }}
-                isStreaming={chat.isStreaming}
-                leaderActive={keybindState.leaderActive}
-              />
-            </Box>
-          </>
-        )}
+    <Box flexDirection="column" height={rows}>
+      {/* Header — height: 3 */}
+      <Box
+        height={3}
+        borderStyle={theme.borderStyle}
+        borderColor={theme.colors.border}
+        paddingX={1}
+      >
+        <Header
+          model={model}
+          agent={agent}
+          agentColor={agentColor}
+          sessionId={sessionId}
+          tokenCount={tokenCount}
+          autoRoute={false}
+        />
       </Box>
-    </>
+
+      {/* Dialog overlay replaces main content when a dialog is open */}
+      {dialogIsOpen ? (
+        <Box flexDirection="column" flexGrow={1}>
+          <DialogHost />
+        </Box>
+      ) : (
+        <>
+          {/* Message history + streaming area */}
+          <MessageArea
+            messages={messages}
+            streamingText={chat.streamingText}
+            isStreaming={chat.isStreaming}
+            activeToolCalls={chat.activeToolCalls}
+            onToggleToolCall={chat.toggleToolCallExpansion}
+          />
+
+          {/* Input Box — flexShrink={0} prevents squeezing by flex algorithm */}
+          <Box flexShrink={0}>
+            <InputBox
+              agent={agent}
+              agentColor={agentColor}
+              disabled={chat.isStreaming}
+              onSubmit={handleSubmit}
+              isFocused={!keybindState.leaderActive}
+              commands={commands}
+            />
+          </Box>
+
+          {/* Status Bar — flexShrink={0} prevents squeezing by flex algorithm */}
+          <Box flexShrink={0}>
+            <StatusBar
+              agent={agent}
+              model={model}
+              cost={{ totalCost: cost.totalCost, currency: cost.currency }}
+              isStreaming={chat.isStreaming}
+              leaderActive={keybindState.leaderActive}
+            />
+          </Box>
+        </>
+      )}
+    </Box>
   );
 }
 

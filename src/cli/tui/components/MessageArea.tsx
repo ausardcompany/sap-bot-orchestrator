@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 
+import { MessageBubble } from './MessageBubble.js';
 import { MarkdownRenderer } from './MarkdownRenderer.js';
 import { Spinner } from './Spinner.js';
 import { ToolCallBlock } from './ToolCallBlock.js';
@@ -26,6 +27,8 @@ export interface MessageDisplay {
 }
 
 export interface MessageAreaProps {
+  /** Completed conversation messages (user + assistant history) */
+  messages: MessageDisplay[];
   /** Currently streaming text (live, incomplete assistant response) */
   streamingText: string;
   /** Whether streaming is in progress */
@@ -41,15 +44,13 @@ export interface MessageAreaProps {
 // ---------------------------------------------------------------------------
 
 /**
- * MessageArea — streaming-only conversation viewport.
+ * MessageArea — full conversation viewport.
  *
- * Completed messages are rendered by `<Static>` in App.tsx and scroll into
- * terminal scrollback. This component only renders:
- * - Active tool calls with live status
- * - Streaming assistant text with markdown rendering
- * - Spinner placeholder while waiting for first chunk
+ * Renders both completed messages (history) and the live streaming area
+ * inside the dynamic viewport so messages remain visible on screen.
  */
 export function MessageArea({
+  messages,
   streamingText,
   isStreaming,
   activeToolCalls,
@@ -61,7 +62,40 @@ export function MessageArea({
 
   return (
     <Box flexDirection="column" flexGrow={1} overflow="hidden">
-      {/* Active tool calls */}
+      {/* Completed messages (history) */}
+      {messages.map((msg, idx) => (
+        <Box key={msg.id} flexDirection="column">
+          {idx > 0 && (
+            <Box paddingX={1}>
+              <Text dimColor>{'─'.repeat(40)}</Text>
+            </Box>
+          )}
+          <MessageBubble
+            role={msg.role}
+            content={msg.content}
+            agent={msg.agent}
+            model={msg.model}
+            tokens={msg.tokens}
+            timestamp={msg.timestamp}
+            images={msg.images}
+          />
+          {msg.toolCalls.map((tc) => (
+            <ToolCallBlock
+              key={tc.id}
+              toolName={tc.toolName}
+              params={tc.params}
+              status={tc.status}
+              output={tc.output}
+              error={tc.error}
+              isExpanded={tc.isExpanded}
+              onToggle={() => onToggleToolCall(tc.id)}
+              diff={tc.diff}
+            />
+          ))}
+        </Box>
+      ))}
+
+      {/* Active tool calls (currently executing) */}
       {activeToolCalls.map((tc) => (
         <ToolCallBlock
           key={tc.id}

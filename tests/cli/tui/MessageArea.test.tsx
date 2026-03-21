@@ -20,16 +20,19 @@ const makeToolCall = (overrides: Partial<ToolCallState> = {}): ToolCallState => 
   ...overrides,
 });
 
+const defaultAreaProps = {
+  messages: [],
+  streamingText: '',
+  isStreaming: false,
+  activeToolCalls: [] as ToolCallState[],
+  onToggleToolCall: vi.fn(),
+};
+
 describe('MessageArea', () => {
   it('renders without crashing when empty', () => {
     const { lastFrame } = render(
       <ThemeProvider>
-        <MessageArea
-          streamingText=""
-          isStreaming={false}
-          activeToolCalls={[]}
-          onToggleToolCall={vi.fn()}
-        />
+        <MessageArea {...defaultAreaProps} />
       </ThemeProvider>
     );
     expect(lastFrame()).toBeDefined();
@@ -38,12 +41,7 @@ describe('MessageArea', () => {
   it('renders streaming text when isStreaming is true', () => {
     const { lastFrame } = render(
       <ThemeProvider>
-        <MessageArea
-          streamingText="partial response..."
-          isStreaming={true}
-          activeToolCalls={[]}
-          onToggleToolCall={vi.fn()}
-        />
+        <MessageArea {...defaultAreaProps} streamingText="partial response..." isStreaming={true} />
       </ThemeProvider>
     );
     expect(lastFrame()).toContain('partial response...');
@@ -52,12 +50,7 @@ describe('MessageArea', () => {
   it('does not render streaming text when isStreaming is false', () => {
     const { lastFrame } = render(
       <ThemeProvider>
-        <MessageArea
-          streamingText="should not show"
-          isStreaming={false}
-          activeToolCalls={[]}
-          onToggleToolCall={vi.fn()}
-        />
+        <MessageArea {...defaultAreaProps} streamingText="should not show" isStreaming={false} />
       </ThemeProvider>
     );
     expect(lastFrame()).not.toContain('should not show');
@@ -66,12 +59,7 @@ describe('MessageArea', () => {
   it('renders a waiting indicator when streaming but no text yet', () => {
     const { lastFrame } = render(
       <ThemeProvider>
-        <MessageArea
-          streamingText=""
-          isStreaming={true}
-          activeToolCalls={[]}
-          onToggleToolCall={vi.fn()}
-        />
+        <MessageArea {...defaultAreaProps} isStreaming={true} />
       </ThemeProvider>
     );
     expect(lastFrame()).toContain('…');
@@ -81,12 +69,7 @@ describe('MessageArea', () => {
     const toolCalls = [makeToolCall({ toolName: 'bash', params: { command: 'ls' } })];
     const { lastFrame } = render(
       <ThemeProvider>
-        <MessageArea
-          streamingText=""
-          isStreaming={false}
-          activeToolCalls={toolCalls}
-          onToggleToolCall={vi.fn()}
-        />
+        <MessageArea {...defaultAreaProps} activeToolCalls={toolCalls} />
       </ThemeProvider>
     );
     expect(lastFrame()).toContain('bash');
@@ -95,12 +78,7 @@ describe('MessageArea', () => {
   it('renders streaming assistant label when streaming', () => {
     const { lastFrame } = render(
       <ThemeProvider>
-        <MessageArea
-          streamingText="hello"
-          isStreaming={true}
-          activeToolCalls={[]}
-          onToggleToolCall={vi.fn()}
-        />
+        <MessageArea {...defaultAreaProps} streamingText="hello" isStreaming={true} />
       </ThemeProvider>
     );
     expect(lastFrame()).toContain('assistant');
@@ -114,12 +92,7 @@ describe('MessageArea', () => {
     ];
     const { lastFrame } = render(
       <ThemeProvider>
-        <MessageArea
-          streamingText=""
-          isStreaming={true}
-          activeToolCalls={toolCalls}
-          onToggleToolCall={vi.fn()}
-        />
+        <MessageArea {...defaultAreaProps} isStreaming={true} activeToolCalls={toolCalls} />
       </ThemeProvider>
     );
     expect(lastFrame()).toContain('read');
