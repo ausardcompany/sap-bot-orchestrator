@@ -323,14 +323,15 @@ graph TB
 1. **Intelligent Failure Detection**: Collects logs from all failed CI jobs with exact error messages, file paths, and line numbers
 
 2. **Two-Stage Fix Process**:
-   - **Quick Fixes**: Runs `npm run lint:fix` and `npm run format` for deterministic auto-fixes
-   - **AI Agent Fixes**: Uses Alexi agent mode with tools (read, write, edit, glob, grep, bash) to apply targeted fixes
+   - **Phase 1 - Quick Fixes**: Runs `npm run lint:fix` and `npm run format` for deterministic auto-fixes, commits immediately if successful
+   - **Phase 2 - AI Agent Fixes**: Uses Alexi agent mode with tools (read, write, edit, glob, grep, bash) to apply targeted fixes for complex issues
+   - Agent step only runs if quick fixes don't resolve all failures
 
-3. **Targeted Verification**: Re-runs only the checks that originally failed to verify fixes
+3. **State Preservation**: Preserves `ci-failures.md` across git checkout operations with temporary backup
 
-4. **Rate Limiting**: Maximum 2 auto-fix runs per branch per day to prevent infinite loops
+4. **Prompt File Availability**: Ensures `.github/prompts/ci-fix-system.md` is available on PR branches by checking out from origin/master
 
-5. **Branch Filtering**: Only processes branches matching `auto/*` pattern
+5. **Rate Limiting**: Maximum 2 auto-fix runs per branch per day to prevent infinite loops
 
 #### Workflow Steps
 
@@ -360,7 +361,12 @@ graph TB
 - Restores `ci-failures.md` from `/tmp` after checkout
 - Ensures failure logs are available for analysis
 
-**Step 5: Build Alexi CLI**
+**Step 5: Ensure Prompt Files from Master**
+- Checks if `.github/prompts/ci-fix-system.md` exists on branch
+- If missing, checks out from origin/master without staging
+- Enables consistent fix guidance across all branches
+
+**Step 6: Build Alexi CLI**
 - Installs dependencies
 - Builds Alexi CLI from source
 

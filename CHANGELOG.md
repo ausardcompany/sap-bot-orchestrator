@@ -7,6 +7,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-03-21
+
+### Added
+
+- Ink TUI rendering optimization using Static component for completed messages
+  - Completed messages now render once and scroll into terminal scrollback
+  - Only active streaming content and tool calls remain in dynamic viewport
+  - Significantly reduces re-render overhead for long conversations
+  - Improved terminal scrollback navigation and history access
+- Comprehensive TUI component test coverage
+  - Added tests for AttachmentBar, ChatContext, MarkdownRenderer, McpManager
+  - Added tests for MessageArea, MessageBubble, SessionList, StatusBar
+  - Added tests for useClipboardImage and useCommands hooks
+  - Uses ink-testing-library with React context mocking
+  - Validates component rendering, state management, and user interactions
+- Permission system pattern matching with null sentinel support
+  - Added matchesPattern and evaluatePatternRules functions
+  - Supports glob patterns with wildcards for granular permission control
+  - Null values in permission config act as delete sentinels for rule removal
+  - Enhanced PermissionNext utilities for config parsing and serialization
+- CI Auto-Fix workflow improvements
+  - Deterministic quick fixes now commit independently before agent step
+  - Preserves ci-failures.md across checkout operations
+  - Ensures prompt files from master are available on PR branches
+  - Re-verification after quick fixes skips agent step when all checks pass
+  - Improved retry logic with better handling of transient failures
+- Documentation workflow retry logic
+  - Automatic retry on transient network errors (socket hang up, ECONNRESET, ETIMEDOUT)
+  - Up to 2 attempts with 30-second delay between retries
+  - Enhanced failure comment condition to catch both outcome and output failures
+- Presentation generation script for Alexi project
+  - Generates PowerPoint and PDF presentations with SAP corporate branding
+  - 17-slide deck covering architecture, features, workflows, and roadmap
+  - Includes Georgia/Calibri font pairing and professional color palette
+  - Exports slide previews as JPEG images
+
+### Changed
+
+- TUI MessageArea component now streaming-only
+  - Removed messages prop and completed message rendering logic
+  - Only renders active tool calls and streaming assistant text
+  - Completed messages handled by Static component in App.tsx
+  - Simplified component interface and reduced rendering complexity
+- TUI App.tsx split into Static and dynamic viewport sections
+  - Static section renders completed messages once into terminal scrollback
+  - Dynamic viewport (fixed height) contains header, streaming area, input, status bar
+  - Improved layout stability with flexShrink={0} on input and status bar
+  - Enhanced streaming message handling with completed tool calls transfer
+- MarkdownRenderer width calculation improvements
+  - Added maxWidth prop for explicit width override
+  - Accounts for full padding chain (6 chars) plus 2 chars safety margin
+  - Default effective width: columns - 8 for proper text wrapping
+  - Prevents markdown content overflow in narrow terminals
+- MessageBubble user message layout enhanced
+  - User messages now display on separate lines for better readability
+  - Content wrapped with proper text wrapping for long messages
+  - Maintains timestamp and image attachment display
+- ChatContext state management expanded
+  - Added clearCompletedToolCalls action and reducer case
+  - Enables proper cleanup after transferring tool calls to completed messages
+  - Maintains separation between active and completed tool call state
+- CI Auto-Fix workflow execution order optimized
+  - Quick fixes (lint:fix, format) now commit before agent step
+  - Agent step only runs if quick fixes don't resolve all failures
+  - Reduced unnecessary agent invocations for simple formatting issues
+- Documentation workflow comment logic improved
+  - Fixed failure comment condition to trigger on both outcome and output failures
+  - Enhanced error detection with retry attempt tracking
+
+### Fixed
+
+- TUI message rendering performance for long conversations
+  - Eliminated re-rendering of all historical messages on each update
+  - Terminal scrollback now accessible for reviewing conversation history
+  - Resolved memory and performance issues with 100+ message conversations
+- Permission pattern matching edge cases
+  - Null entries in PermissionObject now correctly skipped during parsing
+  - Null top-level PermissionRule values handled without errors
+  - Config serialization handles null sentinels without creating invalid rules
+- CI Auto-Fix workflow ci-failures.md preservation
+  - File no longer lost during git checkout operations
+  - Temporary backup created before checkout and restored after
+- CI Auto-Fix workflow prompt file availability
+  - Prompt templates from master branch now accessible on PR branches
+  - Files checked out from origin/master without being committed to PR
+- Documentation workflow transient failure handling
+  - Network errors no longer cause immediate workflow failure
+  - Retry logic distinguishes between transient and permanent failures
+
 ## [0.2.6] - 2026-03-19
 
 ### Added
@@ -186,7 +275,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rule-based configuration system
 - Autonomous self-updating from upstream repositories
 
-[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.2.7...HEAD
+[0.2.7]: https://github.com/ausardcompany/alexi/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/ausardcompany/alexi/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/ausardcompany/alexi/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/ausardcompany/alexi/compare/v0.2.3...v0.2.4
