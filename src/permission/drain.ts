@@ -1,7 +1,7 @@
 /**
  * Permission Drain Module
  * Auto-resolves pending permissions now fully covered by approved or denied rules.
- * 
+ *
  * When the user approves/denies a rule on subagent A, sibling subagent B's
  * pending permission for the same pattern resolves or rejects automatically.
  */
@@ -67,7 +67,7 @@ function evaluatePermission(
   permission: string,
   pattern: string,
   currentRuleset: Ruleset,
-  approvedRuleset: Ruleset,
+  approvedRuleset: Ruleset
 ): EvaluationResult {
   // First check approved ruleset (newly added rules)
   for (const rule of approvedRuleset) {
@@ -91,7 +91,7 @@ function evaluatePermission(
  * Auto-resolve pending permissions now fully covered by approved or denied rules.
  * When the user approves/denies a rule on subagent A, sibling subagent B's
  * pending permission for the same pattern resolves or rejects automatically.
- * 
+ *
  * @param pending - Map of pending permission requests
  * @param approved - Newly approved ruleset to evaluate against
  * @param exclude - Optional request ID to exclude from draining (the one that triggered this)
@@ -99,7 +99,7 @@ function evaluatePermission(
 export async function drainCovered(
   pending: Record<string, PendingEntry>,
   approved: Ruleset,
-  exclude?: string,
+  exclude?: string
 ): Promise<void> {
   for (const [id, entry] of Object.entries(pending)) {
     if (id === exclude) {
@@ -108,7 +108,7 @@ export async function drainCovered(
 
     // Evaluate each pattern in the request
     const actions = entry.info.patterns.map((pattern) =>
-      evaluatePermission(entry.info.permission, pattern, entry.ruleset, approved),
+      evaluatePermission(entry.info.permission, pattern, entry.ruleset, approved)
     );
 
     // Check if any pattern is denied
@@ -135,7 +135,9 @@ export async function drainCovered(
 
       // Reject with error containing matching rules
       const matchingRules = approved.filter((r) =>
-        entry.info.patterns.some((p) => r.permission === entry.info.permission && matchPattern(r.pattern, p).matched),
+        entry.info.patterns.some(
+          (p) => r.permission === entry.info.permission && matchPattern(r.pattern, p).matched
+        )
       );
       entry.reject(new PermissionDeniedError(matchingRules));
     } else {

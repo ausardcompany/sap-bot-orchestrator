@@ -1,10 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  drainCovered,
-  PermissionDeniedError,
-  type PendingEntry,
-  type Ruleset,
-} from '../drain.js';
+import { drainCovered, PermissionDeniedError, type PendingEntry, type Ruleset } from '../drain.js';
 import { PermissionResponse } from '../../bus/index.js';
 
 // Mock the bus module
@@ -42,9 +37,7 @@ describe('permission drain', () => {
         },
       };
 
-      const approved: Ruleset = [
-        { permission: 'file:read', pattern: '/path/*', action: 'allow' },
-      ];
+      const approved: Ruleset = [{ permission: 'file:read', pattern: '/path/*', action: 'allow' }];
 
       await drainCovered(pending, approved);
 
@@ -56,7 +49,7 @@ describe('permission drain', () => {
           id: 'req-1',
           granted: true,
           remember: false,
-        }),
+        })
       );
     });
 
@@ -99,7 +92,7 @@ describe('permission drain', () => {
           id: 'req-1',
           granted: false,
           remember: false,
-        }),
+        })
       );
     });
 
@@ -121,9 +114,7 @@ describe('permission drain', () => {
         },
       };
 
-      const approved: Ruleset = [
-        { permission: 'file:read', pattern: '/path/*', action: 'allow' },
-      ];
+      const approved: Ruleset = [{ permission: 'file:read', pattern: '/path/*', action: 'allow' }];
 
       await drainCovered(pending, approved, 'req-1'); // Exclude this request
 
@@ -178,9 +169,7 @@ describe('permission drain', () => {
         },
       };
 
-      const approved: Ruleset = [
-        { permission: 'file:read', pattern: '/path/*', action: 'allow' },
-      ];
+      const approved: Ruleset = [{ permission: 'file:read', pattern: '/path/*', action: 'allow' }];
 
       await drainCovered(pending, approved);
 
@@ -297,9 +286,7 @@ describe('permission drain', () => {
 
   describe('PermissionDeniedError', () => {
     it('should create error with rules', () => {
-      const rules: Ruleset = [
-        { permission: 'file:write', pattern: '/secret/*', action: 'deny' },
-      ];
+      const rules: Ruleset = [{ permission: 'file:write', pattern: '/secret/*', action: 'deny' }];
 
       const error = new PermissionDeniedError(rules);
 
