@@ -20,6 +20,7 @@ import {
   waitForEvent,
   defineEvent,
 } from '../bus/index.js';
+import { drainCovered } from './drain.js';
 
 // Permission action types
 export type PermissionAction = 'read' | 'write' | 'execute' | 'network' | 'admin';
@@ -337,11 +338,41 @@ export class PermissionManager {
 
   /**
    * Add a permission rule
+   * Also triggers drain to auto-resolve any pending permissions covered by the new rule
    */
-  addRule(rule: PermissionRule): void {
+  async addRule(rule: PermissionRule): Promise<void> {
     const validated = PermissionRuleSchema.parse(rule);
     this.rules.push(validated);
     this.rules = this.sortRules(this.rules);
+
+    // Auto-resolve pending permissions now covered by this rule
+    await drainCovered([validated]);
+  }
+
+  /**
+   * Add a permission rule synchronously (for backward compatibility)
+   */
+  addRuleSync(rule: PermissionRule): void {
+    const validated = PermissionRuleSchema.parse(rule);
+    this.rules.push(validated);
+    this.rules = this.sortRules(this.rules);
+    // Note: No drain in sync version
+  }
+
+  /**
+   * Add multiple permission rules at once
+   * Triggers a single drain operation to auto-resolve pending permissions
+   * 
+   * @param rules - Array of rules to add
+   * @param excludeRequestId - Optional request ID to exclude from drain
+   */
+  async addRules(rules: PermissionRule[], excludeRequestId?: string): Promise<void> {
+    const validated = rules.map((r) => PermissionRuleSchema.parse(r));
+    this.rules.push(...validated);
+    this.rules = this.sortRules(this.rules);
+
+    // Auto-resolve pending permissions now covered by these rules
+    await drainCovered(validated, excludeRequestId);
   }
 
   /**
@@ -639,3 +670,14 @@ export function setPermissionManager(manager: PermissionManager): void {
 
 // Export prompt functionality
 export { startPermissionPromptHandler, isPermissionPromptSupported } from './prompt.js';
+
+// Export drain functionality for advanced use cases
+export {
+  drainCovered,
+  registerPending,
+  removePending,
+  getPendingPermissions,
+  clearPendingPermissions,
+  cleanupExpired,
+  type PendingPermission,
+} from './drain.js';
