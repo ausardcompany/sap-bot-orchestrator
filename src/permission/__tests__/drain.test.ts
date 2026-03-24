@@ -126,9 +126,7 @@ describe('drainCovered', () => {
     const approved = [{ permission: 'file:write', pattern: '/project/src/*', action: 'allow' }];
 
     // First pattern allowed, second asks
-    mockEvaluate
-      .mockReturnValueOnce({ action: 'allow' })
-      .mockReturnValueOnce({ action: 'ask' });
+    mockEvaluate.mockReturnValueOnce({ action: 'allow' }).mockReturnValueOnce({ action: 'ask' });
 
     await drainCovered(pending, approved, mockEvaluate, mockEvents, MockDeniedError);
 
@@ -219,9 +217,7 @@ describe('drainCovered', () => {
     ];
 
     // First request: allow, second request: deny
-    mockEvaluate
-      .mockReturnValueOnce({ action: 'allow' })
-      .mockReturnValueOnce({ action: 'deny' });
+    mockEvaluate.mockReturnValueOnce({ action: 'allow' }).mockReturnValueOnce({ action: 'deny' });
 
     await drainCovered(pending, approved, mockEvaluate, mockEvents, MockDeniedError);
 
