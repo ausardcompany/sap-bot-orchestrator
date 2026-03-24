@@ -5,7 +5,6 @@
  * pending permission for the same pattern resolves or rejects automatically.
  */
 
-import type { PermissionNext } from './next.js';
 import { matchesPattern } from './next.js';
 
 /**
