@@ -65,6 +65,22 @@ export interface Rule {
 export type Ruleset = Rule[];
 
 /**
+ * Pending permission request structure
+ * Includes ruleset for later evaluation during drain
+ */
+export interface PendingRequest {
+  info: {
+    id: string;
+    sessionID: string;
+    permission: string;
+    patterns: string[];
+  };
+  ruleset: Ruleset; // Store ruleset for later evaluation
+  resolve: () => void;
+  reject: (e: any) => void;
+}
+
+/**
  * Expand pattern shorthand (currently just returns the pattern as-is)
  */
 function expand(pattern: string): string {
@@ -126,5 +142,50 @@ export const PermissionNext = {
       }
     }
     return result;
+  },
+
+  /**
+   * Evaluate a permission pattern against rulesets
+   * Returns the action to take (allow, deny, or ask)
+   */
+  evaluate(
+    permission: string,
+    pattern: string,
+    ruleset: Ruleset,
+    approved: Ruleset
+  ): { action: Action } {
+    // Check approved rules first (highest priority)
+    for (const rule of approved) {
+      if (rule.permission === permission && matchesPattern(rule.pattern, pattern)) {
+        return { action: rule.action };
+      }
+    }
+
+    // Check local ruleset
+    for (const rule of ruleset) {
+      if (rule.permission === permission && matchesPattern(rule.pattern, pattern)) {
+        return { action: rule.action };
+      }
+    }
+
+    // Default to ask
+    return { action: 'ask' };
+  },
+
+  /**
+   * Events for permission system
+   */
+  Event: {
+    Replied: 'permission.replied',
+  },
+
+  /**
+   * Error thrown when permission is denied
+   */
+  DeniedError: class extends Error {
+    constructor(public rules: Rule[]) {
+      super('Permission denied');
+      this.name = 'PermissionDeniedError';
+    }
   },
 };
