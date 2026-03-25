@@ -29,7 +29,7 @@ export const AgentSchema = z.object({
   // Aliases for @syntax switching
   aliases: z.array(z.string()).optional(),
   // Options for organization-managed agents
-  options: z.record(z.unknown()).optional(),
+  options: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type AgentConfig = z.infer<typeof AgentSchema>;
@@ -130,7 +130,7 @@ class AgentRegistry {
    */
   register(config: AgentConfig): Agent {
     const validated = AgentSchema.parse(config);
-    
+
     // Populate displayName from org mode options if available
     if (
       validated.options?.displayName &&
@@ -139,7 +139,7 @@ class AgentRegistry {
     ) {
       validated.displayName = validated.options.displayName;
     }
-    
+
     const agent = createAgent(validated);
     this.agents.set(agent.id, agent);
 
