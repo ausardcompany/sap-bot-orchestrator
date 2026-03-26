@@ -44,7 +44,7 @@ jobs:
             exit 0
           fi
           echo "Syncing ${{ env.KILOCODE_REPO }} from ${{ env.KILOCODE_UPSTREAM }}..."
-          gh repo sync ${{ env.KILOCODE_REPO }} --source ${{ env.KILOCODE_UPSTREAM }} --branch main || {
+          gh repo sync ${{ env.KILOCODE_REPO }} --source ${{ env.KILOCODE_UPSTREAM }} --branch main --force || {
             echo "::warning::Failed to sync kilocode, it may already be up to date"
           }
 
@@ -57,7 +57,7 @@ jobs:
             exit 0
           fi
           echo "Syncing ${{ env.OPENCODE_REPO }} from ${{ env.OPENCODE_UPSTREAM }}..."
-          gh repo sync ${{ env.OPENCODE_REPO }} --source ${{ env.OPENCODE_UPSTREAM }} --branch main || {
+          gh repo sync ${{ env.OPENCODE_REPO }} --source ${{ env.OPENCODE_UPSTREAM }} --branch dev --force || {
             echo "::warning::Failed to sync opencode, it may already be up to date"
           }
 
