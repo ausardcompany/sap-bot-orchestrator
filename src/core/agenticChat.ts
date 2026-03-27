@@ -231,27 +231,52 @@ export async function agenticChat(
     priority: 200,
   });
 
-  // Determine model
+  // Resolve the active agent (for model/tool/prompt preferences)
+  let activeAgent: import('../agent/index.js').Agent | undefined;
+  try {
+    const { getAgentRegistry } = await import('../agent/index.js');
+    if (options?.agentId) {
+      activeAgent = getAgentRegistry().get(options.agentId);
+    }
+  } catch {
+    // Agent registry not available — skip
+  }
+
+  // Determine model — agent.preferredModel takes precedence over auto-route (but not explicit override)
   let modelId: string;
   let routingReason: string | undefined;
 
   const preferCheap = options?.preferCheap ?? effortConfig.preferCheap;
 
-  if (options?.autoRoute && !options?.modelOverride) {
+  if (options?.modelOverride) {
+    modelId = options.modelOverride.trim();
+  } else if (activeAgent?.preferredModel) {
+    modelId = activeAgent.preferredModel.trim();
+    routingReason = `Agent '${activeAgent.id}' preferred model`;
+  } else if (options?.autoRoute) {
     const decision = routePrompt(message, { preferCheap });
     modelId = decision.modelId;
     routingReason = decision.reason;
   } else {
-    modelId = (options?.modelOverride ?? getDefaultModel()).trim();
+    modelId = getDefaultModel().trim();
   }
 
   // Get provider
   const provider = getProviderForModel(modelId);
 
-  // Build tool schemas for API
+  // Build tool schemas for API — apply agent tool restrictions if present
   const registry = getToolRegistry();
   const allTools = registry.list();
-  const enabledToolNames = options?.enabledTools ?? allTools.map((t) => t.name);
+  let enabledToolNames: string[];
+  if (options?.enabledTools) {
+    // Explicit tool list from caller takes highest precedence
+    enabledToolNames = options.enabledTools;
+  } else if (activeAgent) {
+    // Filter by agent's canUseTool() (respects tools allowlist + disabledTools denylist)
+    enabledToolNames = allTools.filter((t) => activeAgent.canUseTool(t.name)).map((t) => t.name);
+  } else {
+    enabledToolNames = allTools.map((t) => t.name);
+  }
   const enabledTools = allTools.filter((t) => enabledToolNames.includes(t.name));
 
   const toolSchemas = enabledTools.map((t) => formatToolForApi(t.toFunctionSchema()));
@@ -294,6 +319,7 @@ export async function agenticChat(
     const assembled = buildAssembledSystemPrompt({
       modelId,
       agentId: options?.agentId,
+      agentPrompt: activeAgent?.systemPrompt,
       workdir,
       customRules,
     });

@@ -184,6 +184,8 @@ function loadInstructionFiles(workdir: string): string {
 export interface AssembleOptions {
   /** Agent ID (e.g. 'code', 'debug', 'plan'). Determines which agent role prompt to include. */
   agentId?: string;
+  /** Custom agent system prompt — used when agentId is not in the built-in AGENT_PROMPTS map. */
+  agentPrompt?: string;
   /** SAP AI Core model ID. Determines which model-specific prompt to include. */
   modelId?: string;
   /** Working directory. Used for env info and AGENTS.md loading. */
@@ -244,9 +246,9 @@ export function buildAssembledSystemPrompt(options: AssembleOptions = {}): strin
     parts.push(envBlock);
   }
 
-  // 4. Agent role prompt
+  // 4. Agent role prompt (static built-in, or custom prompt passed via options)
   if (options.agentId) {
-    const agentPrompt = AGENT_PROMPTS[options.agentId];
+    const agentPrompt = AGENT_PROMPTS[options.agentId] || options.agentPrompt || '';
     if (agentPrompt) {
       parts.push(agentPrompt);
     }
