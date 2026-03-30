@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-03-30
+
+### Added
+
+- Organization-managed agent modes with cloud configuration sync
+  - New `displayName` field in AgentSchema for human-readable agent names
+  - `options` field for organization-specific metadata and configuration
+  - `migrateOrgModes` function to sync organization modes from cloud
+  - Protection against removal of organization-managed agents
+- Permission system enhancements
+  - Config path protection system to prevent AI modification of configuration files
+  - `ConfigProtection` namespace with detection for .alexi, .kilocode, .opencode directories
+  - `drainCovered` utility for auto-resolving pending permissions covered by new rules
+  - Pattern matching utilities with glob support in `next.ts`
+  - Metadata support in PermissionRequested event for UI customization
+- Shell utilities for cross-platform command execution
+  - PowerShell detection and execution on Windows
+  - Shell argument resolution for pwsh, powershell, cmd, and bash
+  - Default shell detection for current platform
+- Skill system with built-in skills
+  - `BuiltinSkills` namespace with pre-packaged alexi-config skill
+  - Skill registry for managing prompt-based skills
+- Error backoff system with circuit breaker pattern
+  - Exponential backoff for API errors
+  - Fatal error detection for 4xx client errors
+  - Status code extraction from error messages
+
+### Changed
+
+- Agent registry now supports removal of custom agents while protecting built-in and org-managed agents
+- Enhanced upstream sync workflow with force flag for kilocode and opencode repositories
+- Version bumped from 0.3.1 to 0.3.6
+- MCP client manager now handles graceful server initialization failures with summary logging
+
+### Fixed
+
+- Upstream sync workflow now uses correct branch (dev) for opencode repository
+- Upstream sync workflow now uses --force flag to handle diverged histories
+
 ## [0.3.1] - 2026-03-21
 
 ### Added
@@ -224,7 +263,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rule-based configuration system
 - Autonomous self-updating from upstream repositories
 
-[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.3.6...HEAD
+[0.3.6]: https://github.com/ausardcompany/alexi/compare/v0.3.1...v0.3.6
+[0.3.1]: https://github.com/ausardcompany/alexi/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/ausardcompany/alexi/compare/v0.2.6...v0.3.0
 [0.2.6]: https://github.com/ausardcompany/alexi/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/ausardcompany/alexi/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/ausardcompany/alexi/compare/v0.2.3...v0.2.4

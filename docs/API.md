@@ -492,6 +492,217 @@ interface ToolCall {
 }
 ```
 
+#### AgentConfig
+
+Configuration for defining custom agents.
+
+```typescript
+export const AgentSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  displayName: z.string().optional(), // Human-readable name for org modes
+  description: z.string(),
+  mode: z.enum(['primary', 'subagent', 'all']).default('all'),
+  systemPrompt: z.string(),
+  // Tool configuration
+  tools: z.array(z.string()).optional(), // Tool IDs this agent can use
+  disabledTools: z.array(z.string()).optional(), // Explicitly disabled tools
+  // Model preferences
+  preferredModel: z.string().optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  maxTokens: z.number().optional(),
+  // Aliases for @syntax switching
+  aliases: z.array(z.string()).optional(),
+  // Options for organization-managed agents
+  options: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type AgentConfig = z.infer<typeof AgentSchema>;
+
+// Agent registry functions
+import { 
+  getAgentRegistry, 
+  switchAgent, 
+  removeAgent,
+  getCurrentAgent 
+} from './agent/index.js';
+
+// Get current agent
+const agent = getCurrentAgent();
+
+// Switch to different agent
+const switched = switchAgent('debug', 'Need to fix bugs');
+
+// Remove custom agent (cannot remove built-in or org-managed)
+removeAgent('my-custom-agent');
+
+// Access registry directly
+const registry = getAgentRegistry();
+const allAgents = registry.list();
+```
+
+#### Organization-Managed Modes
+
+```typescript
+import { migrateOrgModes, isOrgManagedMode } from './config/modes-migrator.js';
+
+interface OrgMode {
+  name: string;
+  displayName?: string;
+  description?: string;
+  steps?: string[];
+  options?: Record<string, unknown>;
+  permission?: Record<string, unknown>;
+}
+
+// Migrate organization modes from cloud
+await migrateOrgModes([
+  {
+    name: 'enterprise-code',
+    displayName: 'Enterprise Code Assistant',
+    description: 'Organization-approved coding assistant',
+    options: { customSetting: 'value' }
+  }
+]);
+
+// Check if agent is organization-managed
+const isOrgMode = isOrgManagedMode(agent);
+```
+
+#### ErrorBackoff
+
+Circuit breaker and exponential backoff for API errors.
+
+```typescript
+import { ErrorBackoff, extractStatusCode } from './core/error-backoff.js';
+
+interface BackoffConfig {
+  initialDelayMs: number;  // Default: 1000
+  maxDelayMs: number;      // Default: 60000
+  multiplier: number;      // Default: 2
+  maxRetries: number;      // Default: 5
+}
+
+const backoff = new ErrorBackoff({
+  initialDelayMs: 1000,
+  maxDelayMs: 60000,
+  multiplier: 2,
+  maxRetries: 5
+});
+
+// Record error with optional status code
+backoff.recordError(500);
+
+// Record success (resets backoff)
+backoff.recordSuccess();
+
+// Check if should backoff
+if (backoff.shouldBackoff()) {
+  const delayMs = backoff.getRemainingBackoffMs();
+  await sleep(delayMs);
+}
+
+// Check if error is fatal (4xx)
+if (backoff.isFatal()) {
+  throw new Error('Fatal error, stop retrying');
+}
+
+// Get consecutive error count
+const errorCount = backoff.getConsecutiveErrors();
+
+// Extract status code from error message
+const statusCode = extractStatusCode('API error: status: 429');
+// Returns: 429
+```
+
+#### Shell Utilities
+
+Cross-platform shell detection and execution.
+
+```typescript
+import { Shell } from './shell/shell.js';
+
+// Find PowerShell on Windows
+const pwsh = Shell.findPowerShell();
+// Returns: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' or undefined
+
+// Get default shell for platform
+const shell = Shell.getDefaultShell();
+// Windows: pwsh.exe, cmd.exe
+// Unix: $SHELL or /bin/bash
+
+// Get shell arguments for command execution
+const args = Shell.getShellArgs('pwsh.exe');
+// Returns: ['-NoProfile', '-NonInteractive', '-Command']
+
+const bashArgs = Shell.getShellArgs('/bin/bash');
+// Returns: ['-c']
+```
+
+#### Permission System Enhancements
+
+```typescript
+import { ConfigProtection } from './permission/config-paths.js';
+import { matchesPattern } from './permission/next.js';
+import { drainCovered } from './permission/drain.js';
+
+// Check if path is a config file
+const isConfig = ConfigProtection.isRelative('.alexi/config.json');
+// Returns: true
+
+// Check if path is global config directory
+const isGlobal = ConfigProtection.isGlobalConfigDir('/home/user/.alexi');
+// Returns: true
+
+// Check if permission request involves config files
+const request = { patterns: ['.alexi/rules.json'] };
+const needsProtection = ConfigProtection.isRequest(request);
+// Returns: true
+
+// Metadata key for disabling "Allow always" option
+const key = ConfigProtection.DISABLE_ALWAYS_KEY;
+// Returns: 'disableAlways'
+
+// Pattern matching with glob support
+matchesPattern('*.ts', 'index.ts'); // true
+matchesPattern('src/**/*.ts', 'src/tool/tools/read.ts'); // true
+
+// Auto-resolve pending permissions
+await drainCovered(
+  pending,      // Pending permission requests
+  approved,     // Approved rules
+  evaluate,     // Evaluation function
+  events,       // Event definitions
+  DeniedError,  // Error constructor
+  'exclude-id'  // Optional: ID to exclude from drain
+);
+```
+
+#### Builtin Skills
+
+```typescript
+import { BuiltinSkills } from './skill/builtin.js';
+
+interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  prompt: string;
+  source: 'builtin' | 'user';
+  sourcePath: string;
+}
+
+// Get built-in skill by name
+const skill = BuiltinSkills.get('alexi-config');
+
+// List all built-in skills
+const skills = BuiltinSkills.list();
+
+// Check if skill is built-in
+const isBuiltin = BuiltinSkills.isBuiltin('__builtin__');
+// Returns: true
+```
+
 ### Agentic Chat Interfaces
 
 #### AgenticChatOptions
@@ -806,7 +1017,78 @@ interface PermissionContext {
   action: PermissionAction;
   resource: string; // Path, command, URL, etc.
   description?: string;
+  metadata?: Record<string, unknown>; // Optional metadata for UI customization
 }
+```
+
+### Permission Events
+
+```typescript
+import { PermissionRequested, PermissionResponse } from './bus/index.js';
+
+// Permission requested event
+PermissionRequested.subscribe((event) => {
+  console.log('Permission requested:', event);
+  // {
+  //   id: 'perm-123',
+  //   toolName: 'write',
+  //   action: 'write',
+  //   resource: '/path/to/file',
+  //   description: 'Write file',
+  //   timestamp: 1234567890,
+  //   metadata: { disableAlways: true } // For config files
+  // }
+});
+
+// Permission response event
+PermissionResponse.publish({
+  id: 'perm-123',
+  granted: true,
+  remember: false,
+  timestamp: Date.now()
+});
+```
+
+### Config Path Protection
+
+Prevent AI agents from modifying configuration files:
+
+```typescript
+import { ConfigProtection } from './permission/config-paths.js';
+
+// Protected paths include:
+// - .alexi/, .kilocode/, .opencode/ directories
+// - Root-level config files: alexi.json, kilo.json, AGENTS.md
+// - Global config: ~/.alexi/
+
+// Check if path is protected
+const isProtected = ConfigProtection.isRelative('.alexi/config.json');
+
+// Check if request involves config files
+const needsProtection = ConfigProtection.isRequest({
+  patterns: ['.alexi/rules.json']
+});
+
+// Metadata key for UI customization
+const key = ConfigProtection.DISABLE_ALWAYS_KEY; // 'disableAlways'
+```
+
+### Permission Drain System
+
+Auto-resolve pending permissions when new rules cover them:
+
+```typescript
+import { drainCovered } from './permission/drain.js';
+
+// When user approves/denies a rule, drain pending permissions
+await drainCovered(
+  pending,      // Record<id, PendingRequest>
+  approved,     // Array of approved rules
+  evaluate,     // Evaluation function
+  events,       // Event definitions
+  DeniedError,  // Error constructor
+  'exclude-id'  // Optional: exclude specific request
+);
 ```
 
 ### Agentic Permission Configuration
