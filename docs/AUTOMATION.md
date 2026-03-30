@@ -628,6 +628,25 @@ This enhancement allows the AI agent to:
 - Operate autonomously within the project directory
 - Support external directory operations when explicitly allowed
 
+### MCP Server Initialization
+
+MCP (Model Context Protocol) client manager includes graceful failure handling:
+
+```typescript
+// Enhanced initialization with failure summary
+const results = await Promise.allSettled(
+  servers.map(server => mcpManager.connect(server))
+);
+
+// Log summary: "MCP initialization: 3 connected, 1 failed"
+```
+
+Features:
+- Graceful handling of server initialization failures
+- Summary logging of successful and failed connections
+- Non-blocking initialization (failures don't prevent startup)
+- Detailed error messages for troubleshooting
+
 ## Workflow Maintenance
 
 ### Updating Workflows

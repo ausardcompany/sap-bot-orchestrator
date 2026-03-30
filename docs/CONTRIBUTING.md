@@ -221,6 +221,29 @@ graph LR
    const tree = parser.parse(source);
    ```
 
+7. **Error Backoff**: Use circuit breaker for API calls
+   ```typescript
+   import { ErrorBackoff, extractStatusCode } from './core/error-backoff.js';
+   
+   const backoff = new ErrorBackoff();
+   
+   try {
+     await apiCall();
+     backoff.recordSuccess();
+   } catch (error) {
+     const statusCode = extractStatusCode(error.message);
+     backoff.recordError(statusCode);
+     
+     if (backoff.isFatal()) {
+       throw error; // Don't retry 4xx errors
+     }
+     
+     if (backoff.shouldBackoff()) {
+       await sleep(backoff.getRemainingBackoffMs());
+     }
+   }
+   ```
+
 ### File Organization
 
 ```
@@ -240,9 +263,24 @@ src/
 │   ├── index.ts      # Tool framework
 │   └── tools/        # Individual tool implementations
 ├── permission/       # Permission system
-│   └── index.ts
+│   ├── index.ts      # Main permission logic
+│   ├── drain.ts      # Auto-resolve pending permissions
+│   ├── next.ts       # Pattern matching utilities
+│   └── config-paths.ts # Config file protection
 ├── session/          # Session management
-└── bus/              # Event bus system
+├── bus/              # Event bus system
+├── shell/            # Shell utilities
+│   └── shell.ts      # Cross-platform shell detection
+├── skill/            # Skill system
+│   ├── index.ts      # Skill registry
+│   └── builtin.ts    # Built-in skills
+├── config/           # Configuration
+│   ├── userConfig.ts # User configuration
+│   └── modes-migrator.ts # Organization mode sync
+└── core/             # Core logic
+    ├── orchestrator.ts
+    ├── error-backoff.ts # Circuit breaker
+    └── agenticChat.ts
 ```
 
 ### Naming Conventions
@@ -387,6 +425,49 @@ Key principles for TUI testing:
 3. Capture hook return values through a component
 4. Clear mocks between tests with vi.clearAllMocks()
 5. Test both command dispatch and context interactions
+
+### Testing Permission System
+
+Test config path protection and permission drain:
+
+```typescript
+describe('ConfigProtection', () => {
+  it('should detect config file paths', () => {
+    expect(ConfigProtection.isRelative('.alexi/config.json')).toBe(true);
+    expect(ConfigProtection.isRelative('.alexi/plans/feature.md')).toBe(false);
+  });
+});
+
+describe('Permission Drain', () => {
+  it('should auto-resolve covered permissions', async () => {
+    const pending = { 'req-1': { resolve: vi.fn(), reject: vi.fn() } };
+    const approved = [{ permission: 'file:write', pattern: '**', action: 'allow' }];
+    
+    await drainCovered(pending, approved, evaluate, events, DeniedError);
+    expect(pending['req-1'].resolve).toHaveBeenCalled();
+  });
+});
+```
+
+### Testing Error Backoff
+
+Test circuit breaker and exponential backoff:
+
+```typescript
+describe('ErrorBackoff', () => {
+  it('should apply exponential backoff', () => {
+    const backoff = new ErrorBackoff({ initialDelayMs: 1000, multiplier: 2 });
+    backoff.recordError();
+    expect(backoff.shouldBackoff()).toBe(true);
+  });
+
+  it('should detect fatal 4xx errors', () => {
+    const backoff = new ErrorBackoff();
+    backoff.recordError(404);
+    expect(backoff.isFatal()).toBe(true);
+  });
+});
+```
 
 ## Pull Request Process
 

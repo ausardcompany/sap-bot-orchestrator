@@ -269,6 +269,17 @@ Each tool is tested across multiple categories:
    - Normalize parameters to match file's line ending style
    - Ensure replacements maintain original file format
 
+6. **Config Path Protection** (Permission System)
+   - Detect configuration file paths
+   - Prevent auto-approval for config edits
+   - Add metadata to disable "Allow always" option
+
+7. **Pattern Matching** (Permission System)
+   - Exact path matching
+   - Wildcard patterns with *
+   - Globstar patterns with **
+   - Nested directory matching
+
 #### Testing Line Ending Preservation
 
 The edit tool preserves line endings when performing replacements:
@@ -660,6 +671,103 @@ graph LR
     
     style Test fill:#4CAF50
     style Coverage fill:#2196F3
+```
+
+### 8. Test Permission System Components
+
+Test config path protection and pattern matching:
+
+```typescript
+describe('ConfigProtection', () => {
+  it('should detect .alexi directory paths', () => {
+    expect(ConfigProtection.isRelative('.alexi/config.json')).toBe(true);
+    expect(ConfigProtection.isRelative('.alexi/plans/feature.md')).toBe(false);
+  });
+
+  it('should detect root-level config files', () => {
+    expect(ConfigProtection.isRelative('alexi.json')).toBe(true);
+    expect(ConfigProtection.isRelative('src/alexi.json')).toBe(false);
+  });
+
+  it('should detect global config directory', () => {
+    const home = require('os').homedir();
+    const globalConfig = require('path').join(home, '.alexi');
+    expect(ConfigProtection.isGlobalConfigDir(globalConfig)).toBe(true);
+  });
+});
+
+describe('Permission Drain', () => {
+  it('should auto-approve pending permissions covered by new allow rules', async () => {
+    const pending = {
+      'req-1': {
+        info: { patterns: ['/project/src/*'] },
+        resolve: vi.fn(),
+        reject: vi.fn()
+      }
+    };
+    
+    const approved = [
+      { permission: 'file:write', pattern: '/project/**', action: 'allow' }
+    ];
+    
+    await drainCovered(pending, approved, evaluate, events, DeniedError);
+    
+    expect(pending['req-1'].resolve).toHaveBeenCalled();
+  });
+});
+```
+
+### 9. Test Error Backoff System
+
+Test circuit breaker and exponential backoff:
+
+```typescript
+describe('ErrorBackoff', () => {
+  it('should apply exponential backoff', () => {
+    const backoff = new ErrorBackoff({ initialDelayMs: 1000, multiplier: 2 });
+    
+    backoff.recordError();
+    expect(backoff.shouldBackoff()).toBe(true);
+    expect(backoff.getRemainingBackoffMs()).toBeGreaterThan(0);
+  });
+
+  it('should detect fatal 4xx errors', () => {
+    const backoff = new ErrorBackoff();
+    backoff.recordError(404);
+    expect(backoff.isFatal()).toBe(true);
+  });
+
+  it('should reset on success', () => {
+    const backoff = new ErrorBackoff();
+    backoff.recordError(500);
+    backoff.recordSuccess();
+    expect(backoff.shouldBackoff()).toBe(false);
+  });
+});
+```
+
+### 10. Test Shell Utilities
+
+Test cross-platform shell detection:
+
+```typescript
+describe('Shell utilities', () => {
+  it('should find PowerShell on Windows', () => {
+    if (process.platform === 'win32') {
+      const pwsh = Shell.findPowerShell();
+      expect(pwsh).toBeDefined();
+      expect(pwsh).toMatch(/pwsh\.exe|powershell\.exe/);
+    }
+  });
+
+  it('should return correct shell arguments', () => {
+    const pwshArgs = Shell.getShellArgs('pwsh.exe');
+    expect(pwshArgs).toEqual(['-NoProfile', '-NonInteractive', '-Command']);
+    
+    const bashArgs = Shell.getShellArgs('/bin/bash');
+    expect(bashArgs).toEqual(['-c']);
+  });
+});
 ```
 
 ## Troubleshooting

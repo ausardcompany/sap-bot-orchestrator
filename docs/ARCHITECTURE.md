@@ -132,10 +132,17 @@ graph TB
 |--------|------|-------------|
 | Event Bus | `src/bus/index.ts` | Pub/sub event system |
 | Permission | `src/permission/index.ts` | File access control |
+| Permission Drain | `src/permission/drain.ts` | Auto-resolve pending permissions |
+| Permission Patterns | `src/permission/next.ts` | Glob pattern matching utilities |
+| Config Protection | `src/permission/config-paths.ts` | Prevent AI modification of config files |
 | Agent | `src/agent/index.ts` | Autonomous agent system |
 | Agent System | `src/agent/system.ts` | Multi-layer system prompt assembly |
+| Modes Migrator | `src/config/modes-migrator.ts` | Organization-managed mode sync |
 | MCP | `src/mcp/index.ts` | Model Context Protocol |
 | Skill | `src/skill/index.ts` | Specialized prompt skills |
+| Builtin Skills | `src/skill/builtin.ts` | Pre-packaged prompt skills |
+| Shell Utilities | `src/shell/shell.ts` | Cross-platform shell detection |
+| Error Backoff | `src/core/error-backoff.ts` | Circuit breaker and exponential backoff |
 | Compaction | `src/compaction/index.ts` | Context compression |
 | Profile | `src/profile/index.ts` | User profile management |
 | User Config | `src/config/userConfig.ts` | Persistent user configuration |
@@ -542,6 +549,208 @@ flowchart LR
     Fix --> Code
 ```
 
+## Permission System Enhancements
+
+### Config Path Protection
+
+Alexi includes a protection system to prevent AI agents from modifying configuration files without explicit user approval:
+
+```mermaid
+flowchart TB
+    Request[Permission Request] --> Check{Is Config File?}
+    Check -->|Yes| Protect[Config Protection]
+    Check -->|No| Normal[Normal Permission Flow]
+    
+    Protect --> Metadata[Add disableAlways Metadata]
+    Metadata --> UserPrompt[User Prompt Required]
+    UserPrompt --> Decision{User Decision}
+    
+    Decision -->|Allow| Execute[Execute Once]
+    Decision -->|Deny| Reject[Reject Request]
+    
+    Normal --> Rules[Evaluate Rules]
+    Rules --> Auto[Auto-resolve if Covered]
+    
+    style Protect fill:#FF9800
+    style UserPrompt fill:#F44336
+    style Auto fill:#4CAF50
+```
+
+Protected configuration paths include:
+- `.alexi/`, `.kilocode/`, `.opencode/` directories (except `plans/` subdirectories)
+- Root-level config files: `alexi.json`, `kilo.json`, `opencode.json`, `AGENTS.md`
+- Global config directory: `~/.alexi/`
+
+### Permission Drain System
+
+The drain system automatically resolves pending permissions when new rules fully cover them:
+
+```typescript
+// When user approves a rule on subagent A
+await drainCovered(pending, approved, evaluate, events, DeniedError);
+
+// Sibling subagent B's pending permission for same pattern
+// resolves or rejects automatically
+```
+
+Key features:
+- Auto-resolve permissions covered by new allow rules
+- Auto-reject permissions covered by new deny rules
+- Skip config file permissions (always require explicit approval)
+- Publish events for resolved permissions
+
+### Pattern Matching
+
+Glob pattern support for granular permission control:
+
+```typescript
+import { matchesPattern } from './permission/next.js';
+
+// Exact match
+matchesPattern('src/index.ts', 'src/index.ts') // true
+
+// Wildcard
+matchesPattern('*.ts', 'index.ts') // true
+
+// Globstar
+matchesPattern('src/**/*.ts', 'src/tool/tools/read.ts') // true
+```
+
+## Organization-Managed Agents
+
+Alexi supports organization-managed agent modes synced from cloud configuration:
+
+```mermaid
+graph LR
+    Cloud[Cloud Config] --> Migrate[migrateOrgModes]
+    Migrate --> Registry[Agent Registry]
+    Registry --> Agents[Available Agents]
+    
+    subgraph Protection
+        Remove[removeAgent] --> Check{Is Org Mode?}
+        Check -->|Yes| Deny[Deny Removal]
+        Check -->|No| Allow[Allow Removal]
+    end
+    
+    Registry --> Remove
+    
+    style Cloud fill:#2196F3
+    style Deny fill:#F44336
+    style Allow fill:#4CAF50
+```
+
+Organization modes include:
+- `displayName`: Human-readable name for UI display
+- `options.source`: Set to `'organization'` for tracking
+- Protection against removal (managed from cloud dashboard)
+
+```typescript
+// Migrate organization modes
+await migrateOrgModes([
+  {
+    name: 'enterprise-code',
+    displayName: 'Enterprise Code Assistant',
+    description: 'Organization-approved coding assistant',
+    options: { source: 'organization' }
+  }
+]);
+
+// Attempt to remove org mode
+removeAgent('enterprise-code'); // Throws error
+```
+
+## Error Backoff System
+
+Circuit breaker pattern for handling API errors gracefully:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Normal
+    Normal --> Error: API Error
+    Error --> Backoff: Record Error
+    Backoff --> Waiting: Exponential Delay
+    Waiting --> Normal: Delay Expires
+    Waiting --> Fatal: 4xx Error
+    Fatal --> [*]: Stop Retries
+    Normal --> [*]: Success
+```
+
+Features:
+- Exponential backoff with configurable multiplier
+- Maximum delay cap to prevent excessive waiting
+- Fatal error detection for 4xx client errors
+- Status code extraction from error messages
+
+```typescript
+import { ErrorBackoff, extractStatusCode } from './core/error-backoff.js';
+
+const backoff = new ErrorBackoff({
+  initialDelayMs: 1000,
+  maxDelayMs: 60000,
+  multiplier: 2,
+  maxRetries: 5
+});
+
+try {
+  await apiCall();
+  backoff.recordSuccess();
+} catch (error) {
+  const statusCode = extractStatusCode(error.message);
+  backoff.recordError(statusCode);
+  
+  if (backoff.isFatal()) {
+    throw error; // Don't retry 4xx errors
+  }
+  
+  if (backoff.shouldBackoff()) {
+    await sleep(backoff.getRemainingBackoffMs());
+  }
+}
+```
+
+## Shell Utilities
+
+Cross-platform shell detection and execution:
+
+```typescript
+import { Shell } from './shell/shell.js';
+
+// Detect default shell
+const shell = Shell.getDefaultShell();
+// Windows: pwsh.exe or cmd.exe
+// Unix: $SHELL or /bin/bash
+
+// Get shell arguments
+const args = Shell.getShellArgs(shell);
+// PowerShell: ['-NoProfile', '-NonInteractive', '-Command']
+// Bash: ['-c']
+// CMD: ['/c']
+
+// Find PowerShell on Windows
+const pwsh = Shell.findPowerShell();
+// Prefers pwsh (PowerShell Core) over powershell.exe
+```
+
+## Skill System
+
+Pre-packaged prompt skills for specialized tasks:
+
+```typescript
+import { BuiltinSkills } from './skill/builtin.js';
+
+// Get built-in skill
+const skill = BuiltinSkills.get('alexi-config');
+
+// List all built-in skills
+const skills = BuiltinSkills.list();
+
+// Check if skill is built-in
+BuiltinSkills.isBuiltin(skill.sourcePath); // true
+```
+
+Built-in skills:
+- `alexi-config`: Reference for Alexi configuration options and settings
+
 ## Future Improvements
 
 - [ ] Add more provider implementations
@@ -549,3 +758,5 @@ flowchart LR
 - [ ] Add metrics and telemetry
 - [ ] Implement caching layer
 - [ ] Add web UI option
+- [ ] Expand built-in skill library
+- [ ] Add organization mode management UI

@@ -463,6 +463,121 @@ Architectural invariants that should never be violated.
 4. Error handling must use Result<T> pattern
 ```
 
+## Project Context
+
+Project context provides additional information about the codebase structure and architecture.
+
+### Context Files
+
+#### .alexi/context.json
+
+Project-level context configuration.
+
+```json
+{
+  "projectName": "alexi",
+  "description": "Intelligent LLM orchestrator for SAP AI Core",
+  "architecture": {
+    "patterns": ["event-driven", "plugin-based"],
+    "layers": ["cli", "core", "providers", "tools"]
+  },
+  "conventions": {
+    "naming": "camelCase for files, PascalCase for classes",
+    "imports": "Always use .js extension for local imports"
+  }
+}
+```
+
+#### .alexi/invariants.md
+
+Architectural invariants that should never be violated.
+
+```markdown
+# Architectural Invariants
+
+1. All LLM calls must go through SAP AI Core Orchestration API
+2. Tool execution requires permission checks
+3. Session state must be persisted to disk
+4. Error handling must use Result<T> pattern
+```
+
+## Organization-Managed Agents
+
+Alexi supports organization-managed agent modes synced from cloud configuration. These modes are centrally managed and cannot be removed locally.
+
+### Organization Mode Configuration
+
+```typescript
+interface OrgMode {
+  name: string;              // Unique mode identifier
+  displayName?: string;      // Human-readable name for UI
+  description?: string;      // Mode description
+  steps?: string[];          // Workflow steps
+  options?: Record<string, unknown>;  // Custom options
+  permission?: Record<string, unknown>; // Permission config
+}
+```
+
+### Syncing Organization Modes
+
+Organization modes are automatically synced from cloud configuration:
+
+```typescript
+import { migrateOrgModes } from './config/modes-migrator.js';
+
+// Sync modes from cloud
+await migrateOrgModes([
+  {
+    name: 'enterprise-code',
+    displayName: 'Enterprise Code Assistant',
+    description: 'Organization-approved coding assistant',
+    options: {
+      source: 'organization',
+      customSetting: 'value'
+    }
+  }
+]);
+```
+
+### Organization Mode Features
+
+- **Central Management**: Modes are managed from cloud dashboard
+- **Protection**: Cannot be removed locally (prevents accidental deletion)
+- **Display Names**: Human-readable names for UI display
+- **Custom Options**: Organization-specific configuration
+- **Automatic Sync**: Modes sync automatically during startup
+
+### Checking Organization Mode Status
+
+```typescript
+import { isOrgManagedMode } from './config/modes-migrator.js';
+
+const agent = getAgentRegistry().get('enterprise-code');
+if (isOrgManagedMode(agent)) {
+  console.log('This is an organization-managed mode');
+}
+```
+
+### Agent Configuration with Organization Modes
+
+```typescript
+export const AgentSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  displayName: z.string().optional(), // For org modes
+  description: z.string(),
+  mode: z.enum(['primary', 'subagent', 'all']).default('all'),
+  systemPrompt: z.string(),
+  tools: z.array(z.string()).optional(),
+  disabledTools: z.array(z.string()).optional(),
+  preferredModel: z.string().optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  maxTokens: z.number().optional(),
+  aliases: z.array(z.string()).optional(),
+  options: z.record(z.string(), z.unknown()).optional(), // For org metadata
+});
+```
+
 ## Configuration Examples
 
 ### Cost Optimization
