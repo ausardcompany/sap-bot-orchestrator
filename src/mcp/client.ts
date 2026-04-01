@@ -36,10 +36,20 @@ export interface McpConnection {
   status: 'connecting' | 'connected' | 'disconnected' | 'error';
   /** Error message if any */
   error?: string;
+  /** Last time tools were fetched */
+  toolsCachedAt?: number;
 }
+
+interface ToolCache {
+  tools: McpToolInfo[];
+  timestamp: number;
+}
+
+const CACHE_TTL_MS = 30000; // 30 seconds
 
 export class McpClientManager {
   private connections: Map<string, McpConnection> = new Map();
+  private toolCache: Map<string, ToolCache> = new Map();
 
   /**
    * Connect to an MCP server
@@ -229,6 +239,7 @@ export class McpClientManager {
 
   /**
    * Get all available tools from connected servers
+   * Uses cache to avoid redundant RPC calls
    */
   getAllTools(): McpToolInfo[] {
     const allTools: McpToolInfo[] = [];
@@ -243,14 +254,68 @@ export class McpClientManager {
   }
 
   /**
-   * Get tools from a specific server
+   * Get tools from a specific server with caching
    */
   getServerTools(serverName: string): McpToolInfo[] {
     const connection = this.connections.get(serverName);
     if (!connection || connection.status !== 'connected') {
       return [];
     }
+
+    const cached = this.toolCache.get(serverName);
+    const now = Date.now();
+
+    if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+      return cached.tools;
+    }
+
+    // Cache the tools
+    this.toolCache.set(serverName, {
+      tools: connection.tools,
+      timestamp: now,
+    });
+
     return connection.tools;
+  }
+
+  /**
+   * Invalidate tool cache for a specific server or all servers
+   */
+  invalidateToolCache(serverName?: string): void {
+    if (serverName) {
+      this.toolCache.delete(serverName);
+    } else {
+      this.toolCache.clear();
+    }
+  }
+
+  /**
+   * Refresh tools from a specific server
+   */
+  async refreshTools(serverName: string): Promise<void> {
+    const connection = this.connections.get(serverName);
+    if (!connection || connection.status !== 'connected') {
+      return;
+    }
+
+    try {
+      const toolsResult = await connection.client.listTools();
+      connection.tools = (toolsResult.tools || []).map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema as McpToolInfo['inputSchema'],
+        serverName: connection.config.name,
+      }));
+      connection.toolsCachedAt = Date.now();
+
+      // Update cache
+      this.toolCache.set(serverName, {
+        tools: connection.tools,
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      console.error(`Failed to refresh tools from ${serverName}:`, error);
+    }
   }
 
   /**

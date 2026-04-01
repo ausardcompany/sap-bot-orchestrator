@@ -20,6 +20,7 @@ import {
   waitForEvent,
   defineEvent,
 } from '../bus/index.js';
+import { ConfigProtection } from './config-paths.js';
 
 // Permission action types
 export type PermissionAction = 'read' | 'write' | 'execute' | 'network' | 'admin';
@@ -487,6 +488,14 @@ export class PermissionManager {
   private async askUser(ctx: PermissionContext): Promise<PermissionResult> {
     const requestId = nanoid();
 
+    // Check if this is a config file edit
+    const isConfigEdit =
+      (ctx.action === 'write' || ctx.action === 'admin') &&
+      ConfigProtection.isRelative(ctx.resource);
+
+    // For config edits, add metadata to disable "always allow" option
+    const metadata = isConfigEdit ? ConfigProtection.getMetadata() : {};
+
     // Publish permission request event
     PermissionRequested.publish({
       id: requestId,
@@ -495,6 +504,7 @@ export class PermissionManager {
       resource: ctx.resource,
       description: ctx.description ?? `${ctx.action} on ${ctx.resource}`,
       timestamp: Date.now(),
+      metadata,
     });
 
     try {

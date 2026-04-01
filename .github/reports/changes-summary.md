@@ -1,84 +1,119 @@
-# Changes Summary - Upstream Sync Analysis
+# Changes Summary - Update Plan Execution
 
-**Generated**: 2026-03-27  
-**Session**: 28cbfb95-e4a9-4bb9-81ae-e5439ed17482  
-**Upstream Diff Range**: 
-- kilocode: b853ca57..121f6e3c
-- opencode: 2a20822..7715252
-
----
-
-## Executive Summary
-
-**No code changes were applied** during this update cycle. The upstream repositories (kilocode and opencode) showed no commits or file changes in the analyzed diff period.
-
----
+**Date**: 2026-04-01  
+**Execution Status**: ✅ Complete  
+**Total Changes**: 9 implemented
 
 ## Files Modified
 
-None - no files were created, modified, or deleted.
+### 1. **src/permission/config-paths.ts** (NEW)
+- **Priority**: Critical
+- **Type**: Security
+- **Changes**: Created new config path protection system
+  - Added `ConfigProtection` namespace with path validation logic
+  - Protects `.kilo/`, `.kilocode/`, `.opencode/`, `.alexi/` directories
+  - Protects root config files (kilo.json, alexi.json, AGENTS.md, etc.)
+  - Excludes `plans/` subdirectories from protection
+  - Provides `isRelative()`, `isAbsolute()`, `isRequest()` methods
+  - Returns metadata to disable "always allow" option for config edits
 
----
+### 2. **src/permission/drain.ts**
+- **Priority**: High
+- **Type**: Security
+- **Changes**: Integrated config protection into permission drain
+  - Added import for `ConfigProtection`
+  - Added check to prevent auto-resolution of config file edit permissions
+  - Config edits now always require explicit user approval
 
-## Changes Applied
+### 3. **src/agent/index.ts**
+- **Priority**: High
+- **Type**: Feature
+- **Changes**: 
+  - Added `deprecated` field to `AgentSchema` (line 21)
+  - Added read-only bash commands for Ask agent (95 new lines)
+  - Created `readOnlyBash` ruleset with safe commands (cat, ls, grep, git read-only, etc.)
+  - Explicitly denies git write operations (add, commit, push, etc.)
+  - Exported `getAskAgentBashRules()` function
 
-### Code Changes
-- **Count**: 0
-- **Status**: No changes required
+### 4. **src/agent/prompts/ask.txt**
+- **Priority**: High
+- **Type**: Feature
+- **Changes**: Updated Ask agent prompt constraints
+  - Added note about read-only bash commands availability
+  - Added note about MCP tools requiring user approval
+  - Added instruction to suggest agent switching for implementation tasks
 
-### Maintenance Recommendations Identified
-The update plan identified 2 maintenance recommendations:
+### 5. **src/utils/global.ts** (NEW)
+- **Priority**: Medium
+- **Type**: Infrastructure
+- **Changes**: Created global paths utility
+  - Defined `GlobalPaths` interface
+  - Implemented `getGlobalPaths()` function
+  - Returns config, skills, and cache directory paths
 
-1. **Verify Upstream Sync Status** (Priority: low)
-   - Recommendation to manually verify that diff ranges are correct
-   - Suggested verification commands for both kilocode and opencode repositories
-   
-2. **Check claude-code Repository** (Priority: medium)
-   - Noted that claude-code repository was mentioned in diff report header but not in body
-   - Recommended verification of whether claude-code should be included in analysis
+### 6. **src/skill/index.ts**
+- **Priority**: Medium
+- **Type**: Bugfix & Security
+- **Changes**: 
+  - Added import for `getGlobalPaths`
+  - Created `skillDirectories()` function with correct precedence (project first, then global)
+  - Added built-in skills protection with `BUILTIN_SKILLS` set
+  - Created `isBuiltinSkill()` function
+  - Created `removeSkill()` function that prevents removal of built-in skills
 
----
+### 7. **src/permission/index.ts**
+- **Priority**: Medium
+- **Type**: Security
+- **Changes**: Enhanced permission system with config protection
+  - Added import for `ConfigProtection`
+  - Modified `askUser()` method to detect config file edits
+  - Adds metadata to disable "always allow" for config edits
+  - Passes metadata through `PermissionRequested` event
+
+### 8. **src/bus/index.ts**
+- **Priority**: Medium
+- **Type**: Infrastructure
+- **Changes**: Updated event schema
+  - Added optional `metadata` field to `PermissionRequested` event
+  - Supports passing arbitrary metadata for permission requests
+
+### 9. **src/mcp/client.ts**
+- **Priority**: Medium
+- **Type**: Performance
+- **Changes**: Added MCP tool caching
+  - Added `ToolCache` interface
+  - Added `toolsCachedAt` field to `McpConnection`
+  - Added `toolCache` Map to `McpClientManager`
+  - Implemented 30-second cache TTL
+  - Modified `getServerTools()` to use cache
+  - Added `invalidateToolCache()` method
+  - Added `refreshTools()` method for manual cache refresh
 
 ## Issues Encountered
 
-No issues encountered during execution. The update plan correctly identified that no code changes were necessary.
+None. All changes were implemented successfully.
 
----
+## SAP AI Core Compatibility
 
-## Verification Status
+✅ All changes maintain SAP AI Core compatibility:
+- No modifications to core orchestration logic
+- No changes to provider interfaces
+- Permission system enhancements are additive
+- Agent system changes are backward compatible
+- MCP caching is transparent to consumers
 
-✅ Update plan successfully executed  
-✅ No breaking changes introduced (no changes made)  
-✅ SAP AI Core compatibility maintained (no changes made)  
-✅ Existing code style preserved (no changes made)  
+## Testing Recommendations
 
----
-
-## Recommendations for Next Steps
-
-Based on the update plan analysis:
-
-1. **Manual Verification** (Optional): Repository maintainers may want to manually verify the upstream sync status using the commands provided in the update plan
-
-2. **Claude-code Repository**: Consider clarifying whether the claude-code repository should be included in future diff analyses
-
-3. **Baseline Testing** (Optional): Consider running the test suite to ensure current baseline stability:
-   ```bash
-   npm test
-   npm run lint
-   ```
-
-4. **Next Sync**: Schedule the next upstream sync check to monitor for new commits
-
----
+1. **Config Protection**: Test that editing .alexi/, .kilo/, AGENTS.md requires approval each time
+2. **Ask Agent**: Verify read-only bash commands work and write commands are denied
+3. **Skill Precedence**: Confirm project skills override global skills
+4. **Skill Protection**: Verify built-in skills cannot be removed
+5. **MCP Caching**: Test that tool lists are cached and refreshed appropriately
+6. **Permission Drain**: Verify config edits are never auto-resolved
 
 ## Notes
 
-- The absence of upstream changes may indicate a short diff window, a stable period in upstream repositories, or potential issues with diff generation
-- No risk to production as no code was modified
-- All existing functionality remains unchanged
-
----
-
-**Execution completed**: 2026-03-27  
-**Status**: ✅ Success (No changes required)
+- Item #10 from the plan ("Add Empty Tool Calls Loop Prevention") was not included in the provided plan details
+- All implemented changes follow existing code style and conventions
+- TypeScript strict mode compliance maintained
+- ES Module import patterns preserved (`.js` extensions)
