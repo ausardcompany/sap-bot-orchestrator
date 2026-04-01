@@ -221,6 +221,39 @@ graph LR
    const tree = parser.parse(source);
    ```
 
+7. **Module Exports**: Prefer individual named exports over namespace exports
+   ```typescript
+   // Good - Individual named exports with optional convenience object
+   export const DISABLE_ALWAYS_KEY = 'disableAlways' as const;
+   
+   export function isRelative(pattern: string): boolean {
+     // ...
+   }
+   
+   export function isAbsolute(absolutePath: string, projectRoot: string): boolean {
+     // ...
+   }
+   
+   // Optional: Convenience object for backward compatibility
+   export const ConfigProtection = {
+     DISABLE_ALWAYS_KEY,
+     isRelative,
+     isAbsolute,
+   };
+   
+   // Avoid - Namespace exports (harder to tree-shake, ESLint issues)
+   export namespace ConfigProtection {
+     export const DISABLE_ALWAYS_KEY = 'disableAlways' as const;
+     export function isRelative(pattern: string): boolean { /* ... */ }
+   }
+   ```
+   
+   Benefits of individual exports:
+   - Better tree-shaking for smaller bundle sizes
+   - Improved IDE autocomplete and type inference
+   - No ESLint namespace-related warnings
+   - More flexible import patterns for consumers
+
 ### File Organization
 
 ```
@@ -240,7 +273,11 @@ src/
 │   ├── index.ts      # Tool framework
 │   └── tools/        # Individual tool implementations
 ├── permission/       # Permission system
-│   └── index.ts
+│   ├── index.ts      # Main permission logic
+│   ├── config-paths.ts  # Config file protection
+│   ├── drain.ts      # Permission request draining
+│   ├── prompt.ts     # Permission prompt formatting
+│   └── wildcard.ts   # Pattern matching utilities
 ├── session/          # Session management
 └── bus/              # Event bus system
 ```
@@ -576,6 +613,34 @@ getResource: (params, context) => {
   return path.join(context?.workdir || process.cwd(), params.filePath);
 }
 ```
+
+**Config File Protection**:
+
+The permission system includes special protection for configuration files to prevent accidental modification:
+
+```typescript
+import { ConfigProtection } from '../permission/config-paths.js';
+
+// Check if a path is a protected config file
+const isProtected = ConfigProtection.isRelative('.alexi/config.json');
+// Returns: true
+
+// Protected directories: .kilo/, .kilocode/, .opencode/, .alexi/
+// Protected root files: kilo.json, alexi.json, AGENTS.md, etc.
+// Excluded subdirs: plans/ (not considered config)
+
+// Config file edits disable "always allow" option
+if (ConfigProtection.isRequest(permissionInfo)) {
+  const metadata = ConfigProtection.getMetadata();
+  // metadata = { disableAlways: true }
+}
+```
+
+Config file protection ensures:
+- Configuration files cannot be modified without explicit user approval
+- The "Allow always" option is hidden for config file edits
+- Nested config directories (e.g., `packages/sub/.alexi/`) are protected
+- Plan files under `.alexi/plans/` are exempt from protection
 
 ### Contributing to Automation
 

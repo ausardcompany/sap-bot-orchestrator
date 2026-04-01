@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Refactored permission config-paths module from namespace to individual exports for improved tree-shaking and ESLint compatibility
+
 ## [0.3.1] - 2026-03-21
 
 ### Added
