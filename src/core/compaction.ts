@@ -41,6 +41,7 @@ const SUMMARY_PROMPT = `Summarize this conversation for context continuity. Extr
 4. CURRENT STATE: What task is in progress, what's next
 
 Be concise but preserve actionable details. Format as structured notes.
+Respond in the same language the user used in the conversation.
 
 Conversation:
 {messages}`;
