@@ -51,6 +51,29 @@ vi.mock('../../../src/cli/tui/context/DialogContext.js', () => ({
   DialogProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+vi.mock('../../../src/cli/tui/context/SidebarContext.js', () => ({
+  useSidebar: () => ({
+    visible: false,
+    files: [],
+    selectedIndex: 0,
+    setSelectedIndex: vi.fn(),
+    toggle: vi.fn(),
+    show: vi.fn(),
+    hide: vi.fn(),
+    addFile: vi.fn(),
+    removeFile: vi.fn(),
+    clearFiles: vi.fn(),
+  }),
+}));
+
+vi.mock('../../../src/cli/tui/context/PageContext.js', () => ({
+  usePage: () => ({
+    page: 'chat' as const,
+    setPage: vi.fn(),
+    togglePage: vi.fn(),
+  }),
+}));
+
 vi.mock('../../../src/cli/tui/context/ChatContext.js', () => ({
   useChat: () => ({
     isStreaming: false,

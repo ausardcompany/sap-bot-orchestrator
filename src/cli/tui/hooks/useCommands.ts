@@ -255,6 +255,32 @@ function buildCommands(deps: BuildCommandsDeps): SlashCommand[] {
         const t = args.trim().toLowerCase();
         if (t === 'dark' || t === 'light') {
           deps.setTheme(t);
+        } else {
+          // No args — open theme dialog
+          try {
+            const chosen = await deps.openDialog('theme', {});
+            if (typeof chosen === 'string' && (chosen === 'dark' || chosen === 'light')) {
+              deps.setTheme(chosen);
+            }
+          } catch {
+            // cancelled
+          }
+        }
+        return true;
+      },
+    },
+
+    // /file -----------------------------------------------------------------
+    {
+      name: 'file',
+      aliases: ['context'],
+      description: 'Open file picker to attach files',
+      category: 'general',
+      execute: async (_args, _ctx) => {
+        try {
+          await deps.openDialog('file-picker', {});
+        } catch {
+          // cancelled
         }
         return true;
       },
@@ -308,6 +334,17 @@ function buildCommands(deps: BuildCommandsDeps): SlashCommand[] {
       category: 'config',
       execute: async (_args, _ctx) => {
         // TUI stub — full memory management is in the REPL.
+        return true;
+      },
+    },
+
+    // /vim ------------------------------------------------------------------
+    {
+      name: 'vim',
+      description: 'Toggle vim editing mode',
+      category: 'config',
+      execute: async (_args, _ctx) => {
+        // Stub — actual toggle handled by the TUI layer
         return true;
       },
     },

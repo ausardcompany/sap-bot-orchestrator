@@ -9,10 +9,8 @@ export interface DiffViewProps {
   hunks: DiffHunk[];
 }
 
-/**
- * Compute the padding width required to display the largest line number
- * across all hunks. Returns at least 1.
- */
+const MAX_VISIBLE_LINES = 10;
+
 function computeGutterWidth(hunks: DiffHunk[]): number {
   let maxLineNum = 1;
   for (const hunk of hunks) {
@@ -35,10 +33,6 @@ function computeGutterWidth(hunks: DiffHunk[]): number {
   return String(maxLineNum).length;
 }
 
-/**
- * Pad a number to a given width with leading spaces,
- * or return a string of spaces if the number is undefined.
- */
 function padNum(num: number | undefined, width: number): string {
   if (num === undefined) {
     return ' '.repeat(width);
@@ -46,9 +40,6 @@ function padNum(num: number | undefined, width: number): string {
   return String(num).padStart(width, ' ');
 }
 
-/**
- * Return the prefix character for a diff line type.
- */
 function linePrefix(type: DiffLine['type']): string {
   if (type === 'add') {
     return '+';
@@ -60,23 +51,45 @@ function linePrefix(type: DiffLine['type']): string {
 }
 
 /**
- * DiffView — renders a file diff with colored added/removed/context lines.
- *
- * Displays a file path header, hunk headers with @@ markers, and
- * line-by-line content with a two-column line number gutter.
+ * Count additions and deletions across all hunks.
+ */
+function countChanges(hunks: DiffHunk[]): { additions: number; deletions: number } {
+  let additions = 0;
+  let deletions = 0;
+  for (const hunk of hunks) {
+    for (const line of hunk.lines) {
+      if (line.type === 'add') {
+        additions++;
+      } else if (line.type === 'remove') {
+        deletions++;
+      }
+    }
+  }
+  return { additions, deletions };
+}
+
+/**
+ * DiffView — renders a file diff with upstream-matched styling:
+ * - Background highlighting per line (diffAddBg/diffRemoveBg)
+ * - +N/-M summary in header
+ * - diffLineNumber color for gutter
+ * - Collapsible long diffs (first 10 lines + "N more")
  */
 export function DiffView({ filePath, hunks }: DiffViewProps): React.JSX.Element {
   const { theme } = useTheme();
   const { colors } = theme;
 
   const gutterWidth = computeGutterWidth(hunks);
-
-  const header = `─── ${filePath} ───`;
+  const { additions, deletions } = countChanges(hunks);
 
   return (
     <Box flexDirection="column">
-      {/* File path header */}
-      <Text color={colors.dimText}>{header}</Text>
+      {/* File header with +N/-M summary */}
+      <Box>
+        <Text color={colors.dimText}>─── {filePath} ───</Text>
+        <Text color={colors.success}> +{additions}</Text>
+        <Text color={colors.error}>/-{deletions}</Text>
+      </Box>
 
       {hunks.length === 0
         ? null
@@ -86,31 +99,41 @@ export function DiffView({ filePath, hunks }: DiffViewProps): React.JSX.Element 
 
             const hunkHeader = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
 
+            // Check if we need to collapse long hunks
+            const totalLines = hunk.lines.length;
+            const shouldCollapse = totalLines > MAX_VISIBLE_LINES;
+            const visibleLines = shouldCollapse
+              ? hunk.lines.slice(0, MAX_VISIBLE_LINES)
+              : hunk.lines;
+            const hiddenCount = shouldCollapse ? totalLines - MAX_VISIBLE_LINES : 0;
+
             return (
               <Box key={hunkIdx} flexDirection="column" marginTop={hunkIdx > 0 ? 1 : 0}>
-                {/* Hunk header */}
                 <Text color={colors.dimText}>{hunkHeader}</Text>
 
-                {/* Lines */}
-                {hunk.lines.map((line, lineIdx) => {
+                {visibleLines.map((line, lineIdx) => {
                   let leftNum: number | undefined;
                   let rightNum: number | undefined;
                   let lineColor: string;
+                  let bgColor: string | undefined;
 
                   if (line.type === 'remove') {
                     leftNum = oldNum;
                     rightNum = undefined;
                     lineColor = colors.diffRemove;
+                    bgColor = colors.diffRemoveBg;
                     oldNum++;
                   } else if (line.type === 'add') {
                     leftNum = undefined;
                     rightNum = newNum;
                     lineColor = colors.diffAdd;
+                    bgColor = colors.diffAddBg;
                     newNum++;
                   } else {
                     leftNum = oldNum;
                     rightNum = newNum;
                     lineColor = colors.diffContext;
+                    bgColor = undefined;
                     oldNum++;
                     newNum++;
                   }
@@ -119,14 +142,18 @@ export function DiffView({ filePath, hunks }: DiffViewProps): React.JSX.Element 
 
                   return (
                     <Box key={lineIdx}>
-                      <Text color={colors.dimText}>{gutter} </Text>
-                      <Text color={lineColor}>
+                      <Text color={colors.diffLineNumber}>{gutter} </Text>
+                      <Text color={lineColor} backgroundColor={bgColor}>
                         {linePrefix(line.type)}
                         {line.content}
                       </Text>
                     </Box>
                   );
                 })}
+
+                {shouldCollapse && (
+                  <Text color={colors.dimText}> ... ({hiddenCount} more lines)</Text>
+                )}
               </Box>
             );
           })}

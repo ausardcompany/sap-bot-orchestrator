@@ -38,14 +38,13 @@ function ThemeController({
 // ---------------------------------------------------------------------------
 
 describe('theme toggle', () => {
-  it('useTheme() starts with dark theme (primary = cyan)', () => {
+  it('useTheme() starts with dark theme primary', () => {
     const captured: string[] = [];
     render(
       <ThemeProvider>
         <ThemeCapture onRender={(_active, primary) => captured.push(primary)} />
       </ThemeProvider>
     );
-    expect(captured[0]).toBe('cyan');
     expect(captured[0]).toBe(darkTheme.primary);
   });
 
@@ -120,7 +119,6 @@ describe('theme toggle', () => {
       </ThemeProvider>
     );
     expect(captured[0]).toBe(darkTheme.primary);
-    expect(captured[0]).toBe('cyan');
   });
 
   it('light theme primary matches lightTheme.primary constant', () => {
@@ -131,6 +129,5 @@ describe('theme toggle', () => {
       </ThemeProvider>
     );
     expect(captured[0]).toBe(lightTheme.primary);
-    expect(captured[0]).toBe('blue');
   });
 });

@@ -28,7 +28,7 @@ export function McpManager({ servers }: McpManagerProps): React.JSX.Element {
   return (
     <Box
       borderStyle="round"
-      borderColor={colors.info}
+      borderColor={colors.borderFocused}
       paddingX={2}
       paddingY={1}
       flexDirection="column"

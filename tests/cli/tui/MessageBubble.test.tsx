@@ -48,9 +48,10 @@ describe('MessageBubble', () => {
     expect(lastFrame()).toContain('some markdown answer');
   });
 
-  it('renders system message as dimmed centered text', () => {
+  it('renders system message as full-width separator line', () => {
     const { lastFrame } = renderBubble({ role: 'system', content: 'session started' });
-    expect(lastFrame()).toContain('─ session started ─');
+    // System messages now render as a full-width ─ separator line
+    expect(lastFrame()).toContain('──────');
   });
 
   it('shows model and token count in assistant metadata', () => {

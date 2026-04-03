@@ -38,7 +38,7 @@ export function AgentSelector({ currentAgent, agents }: AgentSelectorProps): Rea
   return (
     <Box
       borderStyle="round"
-      borderColor={colors.secondary}
+      borderColor={colors.borderFocused}
       paddingX={2}
       paddingY={1}
       flexDirection="column"
