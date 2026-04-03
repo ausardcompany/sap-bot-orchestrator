@@ -83,7 +83,10 @@ graph TB
 | Module | File | Description |
 |--------|------|-------------|
 | Program | `src/cli/program.ts` | CLI entry point using Commander.js |
-| Interactive | `src/cli/interactive.ts` | Interactive mode with streaming UI |
+| Interactive | `src/cli/interactive.ts` | Interactive mode with streaming UI (deprecated) |
+| TUI App | `src/cli/tui/App.tsx` | Ink-based TUI application with React components |
+| Chat Page | `src/cli/tui/pages/ChatPage.tsx` | Main chat interface with sidebar and messages |
+| Logs Page | `src/cli/tui/pages/LogsPage.tsx` | Debug logs viewer with filtering |
 | Completer | `src/cli/utils/completer.ts` | Unified autocomplete engine for commands, models, paths |
 | Keybindings | `src/cli/utils/keybindings.ts` | Keyboard shortcut handling |
 
@@ -130,16 +133,19 @@ graph TB
 
 | Module | File | Description |
 |--------|------|-------------|
-| Event Bus | `src/bus/index.ts` | Pub/sub event system |
+| Event Bus | `src/bus/index.ts` | Pub/sub event system with metadata support |
 | Permission | `src/permission/index.ts` | File access control |
-| Agent | `src/agent/index.ts` | Autonomous agent system |
+| Permission Config Paths | `src/permission/config-paths.ts` | Config file protection logic |
+| Agent | `src/agent/index.ts` | Autonomous agent system with ask agent |
 | Agent System | `src/agent/system.ts` | Multi-layer system prompt assembly |
 | MCP | `src/mcp/index.ts` | Model Context Protocol |
-| Skill | `src/skill/index.ts` | Specialized prompt skills |
-| Compaction | `src/compaction/index.ts` | Context compression |
+| MCP Client | `src/mcp/client.ts` | MCP server connection manager with caching |
+| Skill | `src/skill/index.ts` | Reusable AI behavior system |
+| Compaction | `src/compaction/index.ts` | Context compression with metadata preservation |
 | Profile | `src/profile/index.ts` | User profile management |
 | User Config | `src/config/userConfig.ts` | Persistent user configuration |
 | Logger | `src/utils/logger.ts` | Centralized logging utility |
+| Global Utils | `src/utils/global.ts` | Global path resolution utilities |
 
 ## Data Flow
 
@@ -366,20 +372,30 @@ Routing rules are defined in `routing-config.json` or `~/.alexi/routing-config.j
 alexi/
 ├── src/
 │   ├── cli/           # CLI entry points
+│   │   └── tui/       # Ink-based Terminal UI
+│   │       ├── components/    # React components (Header, StatusBar, MessageArea, etc.)
+│   │       ├── context/       # React contexts (Theme, Session, Chat, Dialog, etc.)
+│   │       ├── dialogs/       # Modal dialogs (ModelPicker, AgentSelector, etc.)
+│   │       ├── hooks/         # Custom hooks (useCommands, useVimMode, useScrollPosition, etc.)
+│   │       ├── pages/         # Page components (ChatPage, LogsPage)
+│   │       ├── theme/         # Theme definitions (dark, light)
+│   │       ├── types/         # TypeScript type definitions
+│   │       └── utils/         # TUI utilities (helpEntries, terminalImage)
 │   ├── core/          # Core orchestration
 │   ├── providers/     # LLM providers
 │   ├── tool/          # Tool system
 │   │   └── tools/     # Individual tools
-│   ├── agent/         # Agent system
-│   ├── bus/           # Event bus
-│   ├── permission/    # Permission system
-│   ├── mcp/           # MCP integration
-│   ├── skill/         # Skill system
+│   ├── agent/         # Agent system with ask agent
+│   ├── bus/           # Event bus with metadata support
+│   ├── permission/    # Permission system with config protection
+│   ├── mcp/           # MCP integration with client manager
+│   ├── skill/         # Skill system for reusable behaviors
 │   ├── config/        # Configuration
 │   ├── log/           # Logging
 │   ├── profile/       # Profile management
-│   └── ...
+│   └── utils/         # Shared utilities (logger, global paths)
 ├── tests/             # Test files
+│   └── cli/tui/       # TUI component tests
 ├── dist/              # Compiled output
 └── docs/              # Documentation
 ```
@@ -549,3 +565,419 @@ flowchart LR
 - [ ] Add metrics and telemetry
 - [ ] Implement caching layer
 - [ ] Add web UI option
+
+## TUI Architecture
+
+The Terminal User Interface (TUI) is built with Ink 6 and React 19, providing a full-featured interactive experience.
+
+```mermaid
+graph TB
+    subgraph TUI["TUI Application"]
+        App[App.tsx]
+        PageRouter[Page Router]
+        ChatPage[ChatPage]
+        LogsPage[LogsPage]
+        DialogHost[DialogHost]
+    end
+    
+    subgraph Contexts["React Contexts"]
+        Theme[ThemeContext]
+        Session[SessionContext]
+        Chat[ChatContext]
+        Sidebar[SidebarContext]
+        Page[PageContext]
+        Dialog[DialogContext]
+        Keybind[KeybindContext]
+        Attachment[AttachmentContext]
+    end
+    
+    subgraph Components["UI Components"]
+        Header[Header]
+        MessageArea[MessageArea]
+        InputBox[InputBox]
+        StatusBar[StatusBar]
+        SplitPane[SplitPane]
+        SidebarComp[Sidebar]
+        LogViewer[LogViewer]
+        DiffView[DiffView]
+    end
+    
+    subgraph Hooks["Custom Hooks"]
+        StreamChat[useStreamChat]
+        Commands[useCommands]
+        VimMode[useVimMode]
+        ScrollPos[useScrollPosition]
+        FileChanges[useFileChanges]
+        LogCollector[useLogCollector]
+    end
+    
+    App --> PageRouter
+    PageRouter --> ChatPage
+    PageRouter --> LogsPage
+    App --> DialogHost
+    
+    ChatPage --> SplitPane
+    SplitPane --> SidebarComp
+    SplitPane --> MessageArea
+    ChatPage --> InputBox
+    ChatPage --> StatusBar
+    
+    LogsPage --> LogViewer
+    LogsPage --> StatusBar
+    
+    MessageArea --> DiffView
+    
+    App --> Contexts
+    Contexts --> Components
+    Components --> Hooks
+    
+    style App fill:#4CAF50
+    style ChatPage fill:#2196F3
+    style LogsPage fill:#FF9800
+```
+
+### TUI Page Navigation
+
+```mermaid
+stateDiagram-v2
+    [*] --> ChatPage
+    ChatPage --> LogsPage: Ctrl+L
+    LogsPage --> ChatPage: Ctrl+L
+    
+    ChatPage --> Sidebar: Ctrl+B (toggle)
+    Sidebar --> ChatPage: Ctrl+B (toggle)
+    
+    ChatPage --> Dialog: Open Dialog
+    Dialog --> ChatPage: Close/Cancel
+    
+    LogsPage --> Dialog: Open Dialog
+    Dialog --> LogsPage: Close/Cancel
+    
+    note right of ChatPage
+        Main chat interface
+        - Message history
+        - Input box
+        - File changes sidebar
+        - Tool execution display
+    end note
+    
+    note right of LogsPage
+        Debug logs viewer
+        - Level filtering
+        - Text search
+        - Scrollable log entries
+    end note
+```
+
+### TUI Component Hierarchy
+
+```mermaid
+graph TD
+    App[App Component]
+    
+    App --> Providers[Context Providers]
+    Providers --> Theme[ThemeProvider]
+    Theme --> Page[PageProvider]
+    Page --> Session[SessionProvider]
+    Session --> Chat[ChatProvider]
+    Chat --> Attachment[AttachmentProvider]
+    Attachment --> Sidebar[SidebarProvider]
+    Sidebar --> Keybind[KeybindProvider]
+    Keybind --> Dialog[DialogProvider]
+    
+    Dialog --> Layout[AppLayout]
+    Layout --> Header[Header]
+    Layout --> PageRouter[Page Router]
+    Layout --> DialogHost[DialogHost]
+    
+    PageRouter --> ChatPage[ChatPage]
+    PageRouter --> LogsPage[LogsPage]
+    
+    ChatPage --> SplitPane[SplitPane]
+    SplitPane --> SidebarComp[Sidebar]
+    SplitPane --> MessageArea[MessageArea]
+    ChatPage --> InputBox[InputBox]
+    ChatPage --> StatusBar[StatusBar]
+    
+    MessageArea --> MessageBubble[MessageBubble]
+    MessageArea --> ToolCallBlock[ToolCallBlock]
+    ToolCallBlock --> DiffView[DiffView]
+    
+    LogsPage --> LogViewer[LogViewer]
+    
+    DialogHost --> ModelPicker[ModelPicker]
+    DialogHost --> AgentSelector[AgentSelector]
+    DialogHost --> PermissionDialog[PermissionDialog]
+    DialogHost --> SessionList[SessionList]
+    DialogHost --> McpManager[McpManager]
+    DialogHost --> HelpDialog[HelpDialog]
+    DialogHost --> FilePicker[FilePicker]
+    DialogHost --> QuitDialog[QuitDialog]
+    DialogHost --> ThemeDialog[ThemeDialog]
+    DialogHost --> ArgDialog[ArgDialog]
+    
+    style App fill:#4CAF50
+    style ChatPage fill:#2196F3
+    style LogsPage fill:#FF9800
+    style DialogHost fill:#9C27B0
+```
+
+## Skill System Architecture
+
+The skill system enables reusable AI behaviors with tool constraints and model preferences.
+
+```mermaid
+graph TB
+    subgraph Definition["Skill Definition"]
+        File[Markdown File<br/>with Frontmatter]
+        Builtin[Built-in Skill<br/>defineSkill()]
+        MCP[MCP Skill<br/>from Server]
+    end
+    
+    subgraph Loading["Skill Loading"]
+        Discover[discoverSkills()]
+        Load[loadSkillFromFile()]
+        Validate[SkillSchema<br/>Validation]
+    end
+    
+    subgraph Registry["Skill Registry"]
+        Store[Skill Storage]
+        Lookup[ID/Alias Lookup]
+        Category[Category Filter]
+    end
+    
+    subgraph Application["Skill Application"]
+        Prompt[Inject Prompt]
+        Tools[Configure Tools]
+        Model[Set Model Preference]
+        Temp[Set Temperature]
+    end
+    
+    File --> Load
+    Builtin --> Store
+    MCP --> Store
+    
+    Load --> Validate
+    Validate --> Store
+    
+    Discover --> Load
+    
+    Store --> Lookup
+    Store --> Category
+    
+    Lookup --> Prompt
+    Lookup --> Tools
+    Lookup --> Model
+    Lookup --> Temp
+    
+    style Definition fill:#E3F2FD
+    style Registry fill:#4CAF50
+    style Application fill:#FF9800
+```
+
+### Skill File Format
+
+Skills are defined in Markdown files with YAML frontmatter:
+
+```markdown
+---
+id: code-review
+name: Code Review
+description: Perform thorough code review with best practices
+category: review
+tags: [quality, security, performance]
+aliases: [review, cr]
+preferredModel: anthropic--claude-4-sonnet
+temperature: 0.3
+tools: [read, grep, glob]
+disabledTools: [write, edit]
+---
+
+# Code Review Instructions
+
+When reviewing code, focus on:
+
+1. Code quality and readability
+2. Security vulnerabilities
+3. Performance implications
+4. Test coverage
+5. Documentation completeness
+
+Use the read, grep, and glob tools to examine the codebase.
+Do not modify any files during review.
+```
+
+## Ask Agent System
+
+The ask agent provides a read-only interface for querying and exploring codebases without modification capabilities.
+
+```mermaid
+graph LR
+    subgraph Agent["Ask Agent"]
+        Query[User Query]
+        ReadOnly[Read-Only Mode]
+    end
+    
+    subgraph BashRules["Bash Command Rules"]
+        Allow[Allow List<br/>cat, ls, grep, git status]
+        Deny[Deny List<br/>git add, write operations]
+        Default[Default: Deny]
+    end
+    
+    subgraph Tools["Available Tools"]
+        Read[read tool]
+        Grep[grep tool]
+        Glob[glob tool]
+        Bash[bash tool<br/>restricted]
+    end
+    
+    subgraph Protection["Write Protection"]
+        NoWrite[No write tool]
+        NoEdit[No edit tool]
+        NoGitWrite[No git commits]
+    end
+    
+    Query --> ReadOnly
+    ReadOnly --> BashRules
+    BashRules --> Tools
+    Tools --> Protection
+    
+    Allow --> Bash
+    Deny --> Protection
+    Default --> Protection
+    
+    style Agent fill:#4CAF50
+    style BashRules fill:#FF9800
+    style Protection fill:#F44336
+```
+
+### Ask Agent Bash Allowlist
+
+The ask agent enforces strict read-only bash command restrictions:
+
+**Allowed Commands**:
+- File reading: `cat`, `head`, `tail`, `less`
+- Directory listing: `ls`, `tree`, `pwd`
+- Text processing: `grep`, `rg`, `ag`, `sort`, `uniq`, `cut`, `awk`, `sed`, `jq`, `yq`
+- Git read-only: `git status`, `git log`, `git diff`, `git show`, `git blame`
+- System info: `uname`, `whoami`, `printenv`, `which`, `type`, `file`
+
+**Denied Commands**:
+- Git write operations: `git add`, `git commit`, `git push`, `git pull`, `git merge`, `git rebase`
+- All unknown commands (default: deny)
+
+## Config File Protection System
+
+The permission system includes special protection for project configuration files.
+
+```mermaid
+flowchart TB
+    Request[Permission Request]
+    
+    Request --> CheckAction{Action Type?}
+    CheckAction -->|read| Allow[Allow]
+    CheckAction -->|write/edit| CheckPath[Check Path]
+    
+    CheckPath --> IsConfig{Is Config File?}
+    
+    IsConfig -->|Yes| ConfigCheck[Config File Check]
+    IsConfig -->|No| NormalPerms[Normal Permissions]
+    
+    ConfigCheck --> ProjectConfig{Project Config?}
+    ConfigCheck --> GlobalConfig{Global Config?}
+    
+    ProjectConfig -->|.kilo/| Protect[Protect]
+    ProjectConfig -->|.kilocode/| Protect
+    ProjectConfig -->|.opencode/| Protect
+    ProjectConfig -->|.alexi/| Protect
+    ProjectConfig -->|AGENTS.md| Protect
+    
+    GlobalConfig -->|~/.alexi/| Protect
+    
+    Protect --> DisableAlways[Disable 'Always Allow']
+    DisableAlways --> AskUser[Ask User]
+    
+    NormalPerms --> StandardRules[Standard Permission Rules]
+    
+    style Request fill:#E3F2FD
+    style Protect fill:#F44336
+    style Allow fill:#4CAF50
+```
+
+### Protected Paths
+
+The config protection system guards:
+
+1. **Project Config Directories**:
+   - `.kilo/`, `.kilocode/`, `.opencode/`, `.alexi/` at any depth
+   - Excludes: `.alexi/plans/` (not config files)
+
+2. **Root Config Files**:
+   - `kilo.json`, `kilo.jsonc`
+   - `opencode.json`, `opencode.jsonc`
+   - `alexi.json`, `alexi.jsonc`
+   - `AGENTS.md`
+
+3. **Global Config**:
+   - `~/.alexi/` directory and all contents
+
+4. **Protection Behavior**:
+   - Write/edit operations require explicit user approval
+   - "Always allow" option is disabled for config files
+   - Metadata flag `disableAlways: true` passed to permission dialog
+
+## MCP Client Architecture
+
+The Model Context Protocol (MCP) client connects to external servers and aggregates their tools.
+
+```mermaid
+sequenceDiagram
+    participant App as Alexi App
+    participant Manager as McpClientManager
+    participant Client as MCP Client
+    participant Server as MCP Server
+    participant Cache as Tool Cache
+    
+    App->>Manager: connect(config)
+    Manager->>Client: new Client()
+    Manager->>Server: spawn process (stdio)
+    Client->>Server: initialize connection
+    Server-->>Client: capabilities
+    
+    Client->>Server: listTools()
+    Server-->>Client: tool list
+    Client->>Cache: cache tools (30s TTL)
+    Manager-->>App: connection established
+    
+    App->>Manager: getTools(serverName)
+    Manager->>Cache: check cache
+    
+    alt Cache valid
+        Cache-->>Manager: cached tools
+    else Cache expired
+        Manager->>Server: listTools()
+        Server-->>Manager: fresh tool list
+        Manager->>Cache: update cache
+    end
+    
+    Manager-->>App: tool list
+    
+    App->>Manager: callTool(serverName, toolName, params)
+    Manager->>Server: execute tool
+    Server-->>Manager: tool result
+    Manager-->>App: result
+    
+    App->>Manager: disconnect(serverName)
+    Manager->>Client: close()
+    Manager->>Server: kill process
+```
+
+### MCP Features
+
+- **Connection Management**: Tracks status (connecting, connected, disconnected, error)
+- **Tool Caching**: 30-second TTL to reduce server queries
+- **Error Handling**: Graceful degradation on connection failures
+- **Process Management**: Proper cleanup of child processes
+- **Multiple Transports**: Currently supports stdio, extensible for HTTP/SSE
+
+

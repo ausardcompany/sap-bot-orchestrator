@@ -104,11 +104,11 @@ Alexi uses **Vitest** as its testing framework, chosen for:
 
 ## Test Coverage
 
-### Coverage Expectations
+### Test Coverage
 
 | Component | Target Coverage | Current Status |
-|-----------|----------------|----------------|
-| Tool System | 90%+ | ✅ Achieved |
+|-----------|----------------|----------------|\n| Tool System | 90%+ | ✅ Achieved |
+| TUI Components | 85%+ | ✅ Achieved |
 | Core Logic | 85%+ | 🔄 In Progress |
 | Providers | 80%+ | 🔄 In Progress |
 | Router | 90%+ | 🔄 In Progress |
@@ -236,7 +236,32 @@ TUI slash commands are tested through the `useCommands` hook with React context 
 
 | Command | Test File | Test Cases |
 |---------|-----------|------------|
-| `/image`, `/clear-images` | `tests/commands-image.test.tsx` | 10+ cases |
+| `/image`, `/clear-images` | `tests/cli/tui/commands-image.test.tsx` | 10+ cases |
+
+Additional TUI component tests:
+
+| Component | Test File | Test Cases |
+|-----------|-----------|------------|
+| `App` | `tests/cli/tui/App.test.tsx` | Component rendering |
+| `Header` | `tests/cli/tui/Header.test.tsx` | Header display |
+| `StatusBar` | `tests/cli/tui/StatusBar.test.tsx` | Status information |
+| `MessageBubble` | `tests/cli/tui/MessageBubble.test.tsx` | Message rendering |
+| `Sidebar` | `tests/cli/tui/Sidebar.test.tsx` | File list navigation |
+| `SplitPane` | `tests/cli/tui/SplitPane.test.tsx` | Layout management |
+| `LogViewer` | `tests/cli/tui/LogViewer.test.tsx` | Log display and filtering |
+| `LogsPage` | `tests/cli/tui/LogsPage.test.tsx` | Logs page functionality |
+| `HelpDialog` | `tests/cli/tui/HelpDialog.test.tsx` | Help dialog rendering |
+| `QuitDialog` | `tests/cli/tui/QuitDialog.test.tsx` | Quit confirmation |
+| `ThemeDialog` | `tests/cli/tui/ThemeDialog.test.tsx` | Theme selection |
+| `FilePicker` | `tests/cli/tui/FilePicker.test.tsx` | File selection |
+| `ArgDialog` | `tests/cli/tui/ArgDialog.test.tsx` | Argument input |
+| `PageContext` | `tests/cli/tui/PageContext.test.tsx` | Page navigation state |
+| `SidebarContext` | `tests/cli/tui/SidebarContext.test.tsx` | Sidebar state management |
+| `useKeyboard` | `tests/cli/tui/useKeyboard.test.tsx` | Keyboard handling |
+| `useVimMode` | `tests/cli/tui/useVimMode.test.ts` | Vim mode state machine |
+| `useScrollPosition` | `tests/cli/tui/useScrollPosition.test.tsx` | Scroll position tracking |
+| `useFileChanges` | `tests/cli/tui/useFileChanges.test.ts` | File change detection |
+| `theme` | `tests/cli/tui/theme.test.tsx` | Theme switching |
 
 ### Test Categories
 
@@ -602,6 +627,103 @@ Key patterns for TUI command testing:
 3. **Render with Ink**: Use ink-testing-library's render() function
 4. **Test Command Dispatch**: Call handleCommand() and verify behavior
 5. **Clear Mocks**: Use vi.clearAllMocks() in beforeEach()
+6. **Test Context Integration**: Verify hook interactions with React contexts
+7. **Test State Updates**: Verify state changes through re-renders
+
+### Testing TUI Components
+
+TUI components require special testing patterns with Ink testing library:
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import React from 'react';
+import { render } from 'ink-testing-library';
+import { Sidebar } from '../src/cli/tui/components/Sidebar.js';
+
+describe('Sidebar component', () => {
+  it('should render file list', () => {
+    const files = [
+      { path: 'src/index.ts', status: 'modified' as const },
+      { path: 'README.md', status: 'added' as const },
+    ];
+    
+    const { lastFrame } = render(
+      <Sidebar
+        files={files}
+        selectedIndex={0}
+        onSelect={() => {}}
+        onActivate={() => {}}
+        isFocused={false}
+      />
+    );
+    
+    expect(lastFrame()).toContain('src/index.ts');
+    expect(lastFrame()).toContain('README.md');
+  });
+});
+```
+
+### Testing Custom Hooks
+
+Custom hooks require React component wrapper for testing:
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import React from 'react';
+import { render } from 'ink-testing-library';
+import { Text } from 'ink';
+import { useScrollPosition } from '../src/cli/tui/hooks/useScrollPosition.js';
+
+describe('useScrollPosition hook', () => {
+  it('should track scroll offset', () => {
+    let captured: ReturnType<typeof useScrollPosition>;
+    
+    function TestComponent() {
+      captured = useScrollPosition({ totalLines: 100, visibleLines: 24 });
+      return <Text>offset: {captured.scrollOffset}</Text>;
+    }
+    
+    const { lastFrame } = render(<TestComponent />);
+    
+    expect(lastFrame()).toContain('offset: 0');
+    expect(captured!.canScrollDown).toBe(true);
+    expect(captured!.canScrollUp).toBe(false);
+  });
+});
+```
+
+### Testing Vim Mode
+
+The Vim mode hook uses a state machine that requires careful testing:
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { useVimMode } from '../src/cli/tui/hooks/useVimMode.js';
+
+describe('Vim mode state machine', () => {
+  it('should transition between modes', () => {
+    let captured: ReturnType<typeof useVimMode>;
+    
+    function TestComponent() {
+      captured = useVimMode();
+      return <Text>{captured.mode}</Text>;
+    }
+    
+    render(<TestComponent />);
+    
+    // Start in insert mode
+    expect(captured!.mode).toBe('insert');
+    
+    // Enter normal mode
+    captured!.dispatch({ type: 'enter-mode', mode: 'normal' });
+    expect(captured!.mode).toBe('normal');
+    
+    // Enter visual mode
+    captured!.dispatch({ type: 'enter-mode', mode: 'visual' });
+    expect(captured!.mode).toBe('visual');
+  });
+});
+```
 
 ## Testing with SAP AI Core
 

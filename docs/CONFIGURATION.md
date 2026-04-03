@@ -97,6 +97,8 @@ interface UserConfig {
   defaultModel?: string;          // Persistent default model
   soundEnabled?: boolean;         // Enable notification sounds
   autoRoute?: boolean;            // Auto-routing preference
+  vimMode?: boolean;              // Enable Vim mode in TUI
+  theme?: 'dark' | 'light';       // TUI theme preference
   [key: string]: unknown;         // Extensible for custom settings
 }
 ```
@@ -623,8 +625,269 @@ interface Session {
 2. **Use User Config for Preferences**: Store personal preferences in ~/.alexi/config.json
 3. **Use Routing Config for Model Selection**: Define routing rules in routing-config.json
 4. **Use Instruction Files for Context**: Provide project context via AGENTS.md and .alexi/rules/
-5. **Version Control Project Files**: Commit AGENTS.md and .alexi/ to version control
-6. **Keep User Files Private**: Never commit ~/.alexi/ directory
+5. **Use Skills for Reusable Behaviors**: Define skills in .alexi/skills/ directory
+6. **Version Control Project Files**: Commit AGENTS.md and .alexi/ to version control
+7. **Keep User Files Private**: Never commit ~/.alexi/ directory
+
+## Skill Configuration
+
+Skills are reusable AI behaviors stored in Markdown files with YAML frontmatter.
+
+### Skill Locations
+
+Skills are discovered from multiple locations:
+
+1. Project skills: `.alexi/skills/*.md`
+2. Global skills: `~/.alexi/skills/*.md`
+3. Built-in skills: Included with Alexi
+
+### Skill File Format
+
+```markdown
+---
+id: code-review
+name: Code Review
+description: Perform thorough code review with best practices
+category: review
+tags: [quality, security, performance]
+aliases: [review, cr]
+preferredModel: anthropic--claude-4-sonnet
+temperature: 0.3
+maxTokens: 4000
+tools: [read, grep, glob]
+disabledTools: [write, edit]
+---
+
+# Code Review Instructions
+
+When reviewing code, focus on:
+
+1. **Code Quality**: Check for readability, maintainability, and adherence to best practices
+2. **Security**: Look for potential vulnerabilities and security issues
+3. **Performance**: Identify performance bottlenecks and optimization opportunities
+4. **Testing**: Ensure adequate test coverage and quality
+5. **Documentation**: Verify documentation completeness and accuracy
+
+Use the read, grep, and glob tools to examine the codebase.
+Do not modify any files during review.
+```
+
+### Skill Schema
+
+```typescript
+interface Skill {
+  id: string;                     // Unique identifier
+  name: string;                   // Display name
+  description: string;            // Brief description
+  prompt: string;                 // Main prompt content
+  
+  // Optional structured prompts
+  prompts?: {
+    system?: string;              // System-level instructions
+    review?: string;              // Review-specific prompt
+    planning?: string;            // Planning-specific prompt
+    codeReview?: string;          // Code review prompt
+  };
+  
+  // Tool constraints
+  tools?: string[];               // Allowed tools
+  disabledTools?: string[];       // Explicitly disabled tools
+  
+  // Model preferences
+  preferredModel?: string;        // Preferred model ID
+  temperature?: number;           // Temperature (0-2)
+  maxTokens?: number;             // Max tokens
+  
+  // Metadata
+  category?: string;              // Skill category
+  tags?: string[];                // Tags for filtering
+  aliases?: string[];             // Alternative names
+  
+  // Source information
+  source?: 'builtin' | 'file' | 'mcp';
+  sourcePath?: string;
+}
+```
+
+### Creating Custom Skills
+
+1. Create a `.alexi/skills/` directory in your project
+2. Add Markdown files with YAML frontmatter
+3. Skills are automatically discovered on startup
+
+Example: `.alexi/skills/api-design.md`
+
+```markdown
+---
+id: api-design
+name: API Design Review
+description: Review API design for consistency and best practices
+category: review
+tags: [api, design, rest]
+preferredModel: anthropic--claude-4-sonnet
+temperature: 0.3
+tools: [read, grep, glob]
+---
+
+# API Design Review
+
+Review the API design focusing on:
+- RESTful principles
+- Consistent naming conventions
+- Proper HTTP methods and status codes
+- Error handling patterns
+- Authentication and authorization
+```
+
+### Using Skills in Interactive Mode
+
+```bash
+# List available skills
+/skills
+
+# Activate a skill
+/skill code-review
+
+# Activate using alias
+/skill review
+```
+
+## TUI Configuration
+
+The Terminal UI can be customized through user configuration and keyboard shortcuts.
+
+### TUI Settings
+
+```typescript
+// User config for TUI
+interface TUIConfig {
+  theme?: 'dark' | 'light';       // Color theme
+  vimMode?: boolean;              // Enable Vim keybindings
+  sidebarWidth?: number;          // Sidebar width (characters)
+  logLevel?: 'debug' | 'info' | 'warn' | 'error';
+}
+```
+
+### Theme Configuration
+
+Themes are defined in `src/cli/tui/theme/`:
+
+```typescript
+// dark.ts
+export const darkTheme: Theme = {
+  name: 'dark',
+  colors: {
+    text: '#E0E0E0',
+    dimText: '#888888',
+    primary: '#42A5F5',
+    success: '#66BB6A',
+    warning: '#FFA726',
+    error: '#EF5350',
+    border: '#424242',
+    background: '#1E1E1E',
+    diffAdd: '#66BB6A',
+    diffRemove: '#EF5350',
+    diffContext: '#888888',
+    diffAddBg: '#1B5E20',
+    diffRemoveBg: '#B71C1C',
+    diffLineNumber: '#616161',
+  },
+};
+```
+
+### Vim Mode Configuration
+
+Enable Vim mode in user config:
+
+```json
+{
+  "vimMode": true
+}
+```
+
+Vim mode provides:
+- Normal mode: `Esc` to enter
+- Insert mode: `i` to enter
+- Visual mode: `v` to enter
+- Command mode: `:` to enter
+- Navigation: `h`, `j`, `k`, `l`
+- Operators: `d`, `y`, `c`, `p`
+
+### Keyboard Shortcuts
+
+TUI keyboard shortcuts can be customized through the keybind system:
+
+```typescript
+// Custom keybindings
+const customKeybinds = {
+  'Ctrl+L': 'toggle-page',
+  'Ctrl+B': 'toggle-sidebar',
+  'Ctrl+K': 'command-palette',
+  'Ctrl+X': 'leader-mode',
+};
+```
+
+## Config File Protection
+
+Configuration files are protected by the permission system.
+
+### Protected Files and Directories
+
+```typescript
+// Protected config directories
+const CONFIG_DIRS = [
+  '.kilo/',
+  '.kilocode/',
+  '.opencode/',
+  '.alexi/',
+];
+
+// Protected root files
+const CONFIG_ROOT_FILES = [
+  'kilo.json',
+  'kilo.jsonc',
+  'opencode.json',
+  'opencode.jsonc',
+  'alexi.json',
+  'alexi.jsonc',
+  'AGENTS.md',
+];
+
+// Excluded subdirectories (not protected)
+const EXCLUDED_SUBDIRS = [
+  'plans/',
+];
+```
+
+### Protection Behavior
+
+When the agent attempts to modify config files:
+
+1. Write/edit operations require explicit approval
+2. "Always allow" option is disabled
+3. Each change requires individual confirmation
+4. Global config directory (`~/.alexi/`) is protected
+
+### Checking Config Protection
+
+```typescript
+import { ConfigProtection } from './permission/config-paths.js';
+
+// Check if path is protected
+const isProtected = ConfigProtection.isRelative('.alexi/context.json');
+
+// Check absolute path
+const isAbsoluteProtected = ConfigProtection.isAbsolute(
+  '/project/.alexi/config.json',
+  '/project'
+);
+
+// Check permission request
+const isConfigRequest = ConfigProtection.isRequest({
+  patterns: ['.alexi/context.json'],
+  permission: 'write',
+});
+```
 
 ## Configuration Validation
 

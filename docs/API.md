@@ -199,7 +199,29 @@ alexi session-delete -s <session-id>
 
 ## Interactive Mode Commands
 
-The interactive REPL provides slash commands for managing sessions, configuration, and AI interactions.
+The interactive REPL provides slash commands for managing sessions, configuration, and AI interactions. The TUI supports page navigation and advanced keyboard shortcuts.
+
+### Page Navigation
+
+| Shortcut | Description |
+|----------|-------------|
+| `Ctrl+L` | Toggle between Chat page and Logs page |
+| `Ctrl+B` | Toggle sidebar visibility (file changes panel) |
+| `j/k` | Scroll down/up in message area (Vim-style) |
+| `Ctrl+U/D` | Page up/down in message area |
+| `gg` | Jump to top of message area |
+| `G` | Jump to bottom of message area |
+| `Page Up/Down` | Scroll one page up/down |
+
+### Sidebar Navigation
+
+When the sidebar is visible and focused:
+
+| Shortcut | Description |
+|----------|-------------|
+| `Up/Down` | Navigate file list |
+| `j/k` | Navigate file list (Vim-style) |
+| `Enter` | View diff for selected file |
 
 ### General Commands
 
@@ -208,7 +230,7 @@ The interactive REPL provides slash commands for managing sessions, configuratio
 | `/help` | `/h` | Show help message with all available commands |
 | `/exit` | `/quit`, `/q` | Exit the interactive REPL |
 | `/clear` | | Clear the terminal screen |
-| `/agent` | | Switch to a different agent (code, debug, plan, explore) |
+| `/agent` | | Switch to a different agent (code, debug, plan, explore, ask) |
 | `/stage` | | Switch development stage |
 | `/dod` | | Run Definition of Done checks |
 | `/map` | | Show repository map |
@@ -969,3 +991,403 @@ The logger filters messages based on the configured level:
 | `error` | error only |
 
 The `print` method always outputs regardless of log level and is intended for CLI output that should not be filtered.
+
+## Agent System
+
+### Built-in Agents
+
+Alexi includes specialized agents for different tasks:
+
+| Agent | Mode | Description |
+|-------|------|-------------|
+| `code` | primary | Code generation and refactoring |
+| `debug` | primary | Debugging and troubleshooting |
+| `plan` | primary | Planning and architecture design |
+| `explore` | primary | Codebase exploration and analysis |
+| `ask` | primary | Read-only queries and information retrieval |
+
+### Ask Agent
+
+The ask agent provides a safe, read-only interface for querying codebases:
+
+```typescript
+import { getAskAgentBashRules } from './agent/index.js';
+
+// Get read-only bash command rules
+const rules = getAskAgentBashRules();
+
+// Rules enforce:
+// - Allow: cat, ls, grep, git status, git log, etc.
+// - Deny: git add, git commit, write operations
+// - Default: deny for unknown commands
+```
+
+#### Ask Agent Features
+
+- **Read-Only Tools**: Only has access to read, grep, glob, and restricted bash
+- **No Write Operations**: Cannot modify files or commit changes
+- **Safe Exploration**: Perfect for code reviews and information gathering
+- **Git Read-Only**: Can view git history but cannot make commits
+
+#### Ask Agent Bash Restrictions
+
+```typescript
+const readOnlyBash: Record<string, 'allow' | 'ask' | 'deny'> = {
+  '*': 'deny',  // Default deny for unknown commands
+  
+  // Allowed read-only operations
+  'cat *': 'allow',
+  'ls *': 'allow',
+  'grep *': 'allow',
+  'git status *': 'allow',
+  'git log *': 'allow',
+  'git diff *': 'allow',
+  
+  // Explicitly denied write operations
+  'git add *': 'deny',
+  'git commit *': 'deny',
+  'git push *': 'deny',
+};
+```
+
+### Agent Switching
+
+```typescript
+import { switchAgent, getCurrentAgent } from './agent/index.js';
+
+// Switch to ask agent
+const agent = switchAgent('ask', 'Need read-only access');
+
+// Get current agent
+const current = getCurrentAgent();
+console.log(current.id); // 'ask'
+console.log(current.description); // 'Read-only queries...'
+```
+
+## Skill System
+
+The skill system enables reusable AI behaviors with tool constraints and model preferences.
+
+### Skill Definition
+
+```typescript
+import { defineSkill } from './skill/index.js';
+
+const codeReviewSkill = defineSkill({
+  id: 'code-review',
+  name: 'Code Review',
+  description: 'Perform thorough code review with best practices',
+  prompt: 'Review code for quality, security, and performance...',
+  
+  // Tool constraints
+  tools: ['read', 'grep', 'glob'],
+  disabledTools: ['write', 'edit'],
+  
+  // Model preferences
+  preferredModel: 'anthropic--claude-4-sonnet',
+  temperature: 0.3,
+  
+  // Metadata
+  category: 'review',
+  tags: ['quality', 'security', 'performance'],
+  aliases: ['review', 'cr'],
+});
+```
+
+### Loading Skills from Files
+
+Skills can be defined in Markdown files with YAML frontmatter:
+
+```typescript
+import { loadSkillFromFile, discoverSkills } from './skill/index.js';
+
+// Load a single skill
+const skill = loadSkillFromFile('./skills/code-review.md');
+
+// Discover all skills in a directory
+const skills = await discoverSkills('./skills');
+```
+
+#### Skill File Format
+
+```markdown
+---
+id: code-review
+name: Code Review
+description: Perform thorough code review
+category: review
+tags: [quality, security, performance]
+preferredModel: anthropic--claude-4-sonnet
+temperature: 0.3
+tools: [read, grep, glob]
+disabledTools: [write, edit]
+---
+
+# Code Review Instructions
+
+When reviewing code, focus on:
+1. Code quality and readability
+2. Security vulnerabilities
+3. Performance implications
+```
+
+### Skill Registry
+
+```typescript
+import { SkillRegistry } from './skill/index.js';
+
+const registry = new SkillRegistry();
+
+// Register a skill
+registry.register(codeReviewSkill);
+
+// Get skill by ID or alias
+const skill = registry.get('code-review');
+const sameSkill = registry.get('review'); // Using alias
+
+// List skills by category
+const reviewSkills = registry.listByCategory('review');
+
+// List all skills
+const allSkills = registry.list();
+
+// Remove a skill
+registry.remove('code-review');
+```
+
+### Applying Skills
+
+```typescript
+import { applySkill } from './skill/index.js';
+
+// Apply skill to a conversation
+const result = await applySkill('code-review', {
+  context: {
+    files: ['src/tool/tools/write.ts'],
+    workdir: process.cwd(),
+  },
+  onProgress: (event) => {
+    console.log(`Skill progress: ${event.type}`);
+  },
+});
+```
+
+### Built-in Skills
+
+Alexi includes several built-in skills:
+
+| Skill ID | Category | Description |
+|----------|----------|-------------|
+| `code-review` | review | Thorough code review with best practices |
+| `explain-code` | documentation | Explain code functionality and design |
+| `refactor` | refactoring | Suggest refactoring improvements |
+| `test-generation` | testing | Generate unit tests for code |
+
+### Skill Interface
+
+```typescript
+interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  prompt: string;
+  
+  // Optional structured prompts
+  prompts?: {
+    system?: string;
+    review?: string;
+    planning?: string;
+    codeReview?: string;
+  };
+  
+  // Tool constraints
+  tools?: string[];
+  disabledTools?: string[];
+  
+  // Model preferences
+  preferredModel?: string;
+  temperature?: number;
+  maxTokens?: number;
+  
+  // Metadata
+  category?: string;
+  tags?: string[];
+  aliases?: string[];
+  
+  // Source information
+  source?: 'builtin' | 'file' | 'mcp';
+  sourcePath?: string;
+}
+```
+
+## Config File Protection
+
+The permission system includes special protection for configuration files.
+
+### Protected Paths
+
+```typescript
+import { ConfigProtection } from './permission/config-paths.js';
+
+// Check if a path is a config file
+const isConfig = ConfigProtection.isRelative('.alexi/context.json'); // true
+const isAgents = ConfigProtection.isRelative('AGENTS.md'); // true
+
+// Check absolute path
+const absoluteConfig = ConfigProtection.isAbsolute(
+  '/project/.alexi/config.json',
+  '/project'
+); // true
+
+// Get metadata for permission dialog
+const metadata = ConfigProtection.getMetadata();
+// { disableAlways: true }
+```
+
+### Protected Directories
+
+- `.kilo/`, `.kilocode/`, `.opencode/`, `.alexi/` (at any depth)
+- `~/.alexi/` (global config directory)
+- Excludes: `.alexi/plans/` (not config files)
+
+### Protected Root Files
+
+- `kilo.json`, `kilo.jsonc`
+- `opencode.json`, `opencode.jsonc`
+- `alexi.json`, `alexi.jsonc`
+- `AGENTS.md`
+
+### Protection Behavior
+
+When the agent attempts to write to a config file:
+
+1. Permission request is flagged as config file modification
+2. Metadata includes `disableAlways: true`
+3. Permission dialog shows without "Always allow" option
+4. User must explicitly approve each config file change
+
+```typescript
+// Example permission check for config files
+const permissionInfo = {
+  patterns: ['.alexi/context.json'],
+  permission: 'write',
+};
+
+if (ConfigProtection.isRequest(permissionInfo)) {
+  // This is a config file write - require explicit approval
+  const metadata = ConfigProtection.getMetadata();
+  // Show permission dialog with metadata
+}
+```
+
+## TUI Components
+
+The TUI provides React-based components for interactive terminal usage.
+
+### Page Components
+
+```typescript
+import { ChatPage, LogsPage } from './cli/tui/pages/index.js';
+
+// ChatPage props
+interface ChatPageProps {
+  messages: MessageDisplay[];
+  streamingText: string;
+  isStreaming: boolean;
+  activeToolCalls: ToolCallState[];
+  onToggleToolCall: (id: string) => void;
+  agent: string;
+  agentColor: string;
+  model: string;
+  cost: { totalCost: number; currency: string };
+  leaderActive: boolean;
+  dialogIsOpen: boolean;
+  onSubmit: (text: string) => void;
+  commands: SlashCommand[];
+  sidebar: SidebarContextValue;
+}
+
+// LogsPage props
+interface LogsPageProps {
+  entries: LogEntry[];
+  agent: string;
+  model: string;
+  cost: { totalCost: number; currency: string };
+  isStreaming: boolean;
+  leaderActive: boolean;
+}
+```
+
+### Custom Hooks
+
+```typescript
+// Vim mode hook
+import { useVimMode } from './cli/tui/hooks/useVimMode.js';
+
+const {
+  mode,        // 'normal' | 'insert' | 'visual' | 'command'
+  enabled,     // boolean
+  dispatch,    // VimAction dispatcher
+} = useVimMode();
+
+// Scroll position hook
+import { useScrollPosition } from './cli/tui/hooks/useScrollPosition.js';
+
+const {
+  scrollOffset,
+  canScrollUp,
+  canScrollDown,
+  scrollUp,
+  scrollDown,
+  scrollToTop,
+  scrollToBottom,
+  scrollPageUp,
+  scrollPageDown,
+} = useScrollPosition({ totalLines: 100, visibleLines: 24 });
+
+// File changes hook
+import { useFileChanges } from './cli/tui/hooks/useFileChanges.js';
+
+const files = useFileChanges(); // FileChange[]
+
+// Log collector hook
+import { useLogCollector } from './cli/tui/hooks/useLogCollector.js';
+
+const { entries } = useLogCollector(); // LogEntry[]
+```
+
+### TUI Context Types
+
+```typescript
+// Page context
+interface PageContextValue {
+  page: 'chat' | 'logs';
+  setPage: (page: 'chat' | 'logs') => void;
+}
+
+// Sidebar context
+interface SidebarContextValue {
+  visible: boolean;
+  toggle: () => void;
+  files: FileChange[];
+  selectedIndex: number;
+  setSelectedIndex: (index: number) => void;
+}
+
+// File change type
+interface FileChange {
+  path: string;
+  status: 'added' | 'modified' | 'deleted';
+  additions?: number;
+  deletions?: number;
+}
+
+// Log entry type
+interface LogEntry {
+  timestamp: number;
+  level: 'debug' | 'info' | 'warn' | 'error';
+  message: string;
+  data?: unknown;
+}
+```
+

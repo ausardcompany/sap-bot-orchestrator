@@ -227,7 +227,54 @@ graph LR
 src/
 ├── cli/              # CLI-related code
 │   ├── program.ts    # Main CLI entry point
-│   └── commands/     # Individual CLI commands
+│   ├── commands/     # Individual CLI commands
+│   └── tui/          # Terminal UI (Ink + React)
+│       ├── App.tsx           # Main TUI application
+│       ├── components/       # React components
+│       │   ├── Header.tsx
+│       │   ├── StatusBar.tsx
+│       │   ├── MessageArea.tsx
+│       │   ├── InputBox.tsx
+│       │   ├── Sidebar.tsx
+│       │   ├── SplitPane.tsx
+│       │   ├── LogViewer.tsx
+│       │   ├── DiffView.tsx
+│       │   └── ...
+│       ├── context/          # React contexts
+│       │   ├── ThemeContext.tsx
+│       │   ├── SessionContext.tsx
+│       │   ├── ChatContext.tsx
+│       │   ├── DialogContext.tsx
+│       │   ├── PageContext.tsx
+│       │   ├── SidebarContext.tsx
+│       │   └── ...
+│       ├── dialogs/          # Modal dialogs
+│       │   ├── ModelPicker.tsx
+│       │   ├── AgentSelector.tsx
+│       │   ├── PermissionDialog.tsx
+│       │   ├── HelpDialog.tsx
+│       │   ├── FilePicker.tsx
+│       │   ├── QuitDialog.tsx
+│       │   └── ...
+│       ├── hooks/            # Custom hooks
+│       │   ├── useCommands.ts
+│       │   ├── useVimMode.ts
+│       │   ├── useScrollPosition.ts
+│       │   ├── useFileChanges.ts
+│       │   ├── useLogCollector.ts
+│       │   └── ...
+│       ├── pages/            # Page components
+│       │   ├── ChatPage.tsx
+│       │   └── LogsPage.tsx
+│       ├── theme/            # Theme definitions
+│       │   ├── types.ts
+│       │   ├── dark.ts
+│       │   └── light.ts
+│       ├── types/            # TypeScript types
+│       │   └── props.ts
+│       └── utils/            # TUI utilities
+│           ├── helpEntries.ts
+│           └── terminalImage.ts
 ├── core/             # Core orchestration logic
 │   ├── orchestrator.ts
 │   ├── router.ts
@@ -240,6 +287,14 @@ src/
 │   ├── index.ts      # Tool framework
 │   └── tools/        # Individual tool implementations
 ├── permission/       # Permission system
+│   ├── index.ts
+│   ├── config-paths.ts
+│   └── drain.ts
+├── agent/            # Agent system with ask agent
+│   ├── index.ts
+│   ├── system.ts
+│   └── prompts/
+├── skill/            # Skill system
 │   └── index.ts
 ├── session/          # Session management
 └── bus/              # Event bus system
@@ -348,12 +403,16 @@ import { Text } from 'ink';
 // Mock contexts BEFORE importing hooks
 const mockPasteFromClipboard = vi.fn().mockResolvedValue(undefined);
 const mockAddFromFile = vi.fn().mockResolvedValue(undefined);
+const mockClearAll = vi.fn();
 
 vi.mock('../src/cli/tui/context/AttachmentContext.js', () => ({
   useAttachments: () => ({
+    pending: [],
+    reading: false,
+    error: null,
     pasteFromClipboard: mockPasteFromClipboard,
     addFromFile: mockAddFromFile,
-    clearAll: vi.fn(),
+    clearAll: mockClearAll,
   }),
 }));
 
@@ -387,6 +446,148 @@ Key principles for TUI testing:
 3. Capture hook return values through a component
 4. Clear mocks between tests with vi.clearAllMocks()
 5. Test both command dispatch and context interactions
+6. Verify state changes through re-renders
+7. Test keyboard interactions with useInput mock
+
+### Testing TUI Components
+
+TUI components use Ink's render system:
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import React from 'react';
+import { render } from 'ink-testing-library';
+import { Sidebar } from '../src/cli/tui/components/Sidebar.js';
+
+describe('Sidebar component', () => {
+  it('should render file list with status indicators', () => {
+    const files = [
+      { path: 'src/index.ts', status: 'modified' as const },
+      { path: 'README.md', status: 'added' as const },
+      { path: 'old.ts', status: 'deleted' as const },
+    ];
+    
+    const { lastFrame } = render(
+      <Sidebar
+        files={files}
+        selectedIndex={0}
+        onSelect={() => {}}
+        onActivate={() => {}}
+        isFocused={false}
+      />
+    );
+    
+    const output = lastFrame();
+    expect(output).toContain('src/index.ts');
+    expect(output).toContain('README.md');
+    expect(output).toContain('old.ts');
+    
+    // Verify status indicators
+    expect(output).toContain('~'); // modified
+    expect(output).toContain('+'); // added
+    expect(output).toContain('-'); // deleted
+  });
+});
+```
+
+### Testing Custom Hooks
+
+Custom hooks require React component wrapper:
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import React from 'react';
+import { render } from 'ink-testing-library';
+import { Text } from 'ink';
+import { useScrollPosition } from '../src/cli/tui/hooks/useScrollPosition.js';
+
+describe('useScrollPosition hook', () => {
+  it('should track scroll offset and boundaries', () => {
+    let captured: ReturnType<typeof useScrollPosition>;
+    
+    function TestComponent() {
+      captured = useScrollPosition({ totalLines: 100, visibleLines: 24 });
+      return <Text>offset: {captured.scrollOffset}</Text>;
+    }
+    
+    const { lastFrame, rerender } = render(<TestComponent />);
+    
+    // Initial state
+    expect(captured!.scrollOffset).toBe(0);
+    expect(captured!.canScrollDown).toBe(true);
+    expect(captured!.canScrollUp).toBe(false);
+    
+    // Scroll down
+    captured!.scrollDown(5);
+    rerender(<TestComponent />);
+    expect(captured!.scrollOffset).toBe(5);
+    
+    // Scroll to bottom
+    captured!.scrollToBottom();
+    rerender(<TestComponent />);
+    expect(captured!.scrollOffset).toBe(76); // 100 - 24
+    expect(captured!.canScrollDown).toBe(false);
+  });
+});
+```
+
+### Testing Vim Mode State Machine
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import React from 'react';
+import { render } from 'ink-testing-library';
+import { Text } from 'ink';
+import { useVimMode } from '../src/cli/tui/hooks/useVimMode.js';
+
+describe('Vim mode state machine', () => {
+  it('should transition between modes correctly', () => {
+    let captured: ReturnType<typeof useVimMode>;
+    
+    function TestComponent() {
+      captured = useVimMode();
+      return <Text>{captured.mode}</Text>;
+    }
+    
+    const { rerender } = render(<TestComponent />);
+    
+    // Start in insert mode
+    expect(captured!.mode).toBe('insert');
+    expect(captured!.enabled).toBe(false);
+    
+    // Enable Vim mode (enters normal mode)
+    captured!.dispatch({ type: 'enter-mode', mode: 'normal' });
+    rerender(<TestComponent />);
+    expect(captured!.mode).toBe('normal');
+    
+    // Enter visual mode
+    captured!.dispatch({ type: 'enter-mode', mode: 'visual' });
+    rerender(<TestComponent />);
+    expect(captured!.mode).toBe('visual');
+    
+    // Enter command mode
+    captured!.dispatch({ type: 'enter-mode', mode: 'command' });
+    rerender(<TestComponent />);
+    expect(captured!.mode).toBe('command');
+  });
+  
+  it('should handle operators and counts', () => {
+    let captured: ReturnType<typeof useVimMode>;
+    
+    function TestComponent() {
+      captured = useVimMode();
+      return <Text>{captured.mode}</Text>;
+    }
+    
+    render(<TestComponent />);
+    
+    // Set count
+    captured!.dispatch({ type: 'enter-mode', mode: 'normal' });
+    // Type "5dd" (delete 5 lines)
+    // ... test operator and count handling
+  });
+});
+```
 
 ## Pull Request Process
 

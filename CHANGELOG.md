@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-03
+
+### Added
+
+- Complete TUI visual and functional parity with Kilo/OpenCode
+  - Page-based navigation system with ChatPage and LogsPage
+  - Collapsible sidebar showing file changes with status indicators (added, modified, deleted)
+  - SplitPane component for sidebar and message area layout
+  - LogViewer component with level filtering and search
+  - LogCollector hook for capturing and displaying debug logs
+  - Vim mode support with normal, insert, visual, and command modes
+  - ScrollPosition hook for keyboard-based scrolling (j/k, Ctrl+U/D, gg/G)
+  - FileChanges hook for tracking git repository modifications
+  - Enhanced keyboard navigation with Page Up/Down support
+  - New dialogs: HelpDialog, FilePicker, QuitDialog, ThemeDialog, ArgDialog
+  - Terminal image display support for inline screenshots
+  - Fuzzy file search using fzf library
+- Ask agent with read-only bash command restrictions
+  - Comprehensive read-only bash allowlist (cat, ls, grep, git status, etc.)
+  - Explicit denials for all write operations (git add, git commit, file writes)
+  - Default deny for unknown commands to prevent filesystem modifications
+  - getAskAgentBashRules function for permission configuration
+- Enhanced permission system with config file protection
+  - Config path detection for .kilo/, .kilocode/, .opencode/, .alexi/ directories
+  - Protection for AGENTS.md and project config files
+  - Global config directory protection (~/.alexi/)
+  - Metadata support to disable "always allow" option for config edits
+  - Excluded subdirectories (plans/) from config protection
+- Skill system for reusable AI behaviors
+  - defineSkill function for creating skill definitions
+  - loadSkillFromFile for markdown-based skills with frontmatter
+  - Skill discovery from project and global directories
+  - Built-in skills: code-review, explain-code, refactor, test-generation
+  - Skill categories, tags, and aliases
+  - Tool constraints and model preferences per skill
+- MCP client enhancements
+  - Tool caching with 30-second TTL
+  - Improved error handling and connection status tracking
+  - Proper cleanup on disconnect
+  - Better logging for MCP server connections
+- Event bus enhancements
+  - PermissionRequested event now includes metadata field
+  - Better type safety for event payloads
+
+### Changed
+
+- TUI architecture refactored for better modularity
+  - Extracted ChatPage and LogsPage from AppLayout
+  - DialogHost now renders all dialog types centrally
+  - Context providers nested in correct order (PageProvider, SidebarProvider)
+  - Improved component separation of concerns
+- DiffView component enhancements
+  - Background highlighting for added/removed lines (diffAddBg, diffRemoveBg)
+  - Change summary in header (+N/-M additions/deletions)
+  - Line number gutter with diffLineNumber color
+  - Collapsible long diffs (first 10 lines + "N more" indicator)
+  - Upstream-matched styling for visual consistency
+- Theme system expanded
+  - Added diffAddBg and diffRemoveBg colors to both themes
+  - Added diffLineNumber color for gutter styling
+  - Improved color consistency across components
+- Agent system improvements
+  - Deprecated flag support for marking legacy agents
+  - Better agent mode filtering (primary, subagent, all)
+- Compaction system now preserves metadata during context compression
+- Permission drain system improved with better config file detection
+- Updated dependencies
+  - Added fzf@0.5.2 for fuzzy file search
+  - Added terminal-image@4.2.0 for inline image display
+  - Added @testing-library/react@16.3.2 for TUI component testing
+  - Updated @typescript-eslint/eslint-plugin to 8.58.0
+  - Updated @typescript-eslint/parser to 8.58.0
+
+### Fixed
+
+- Documentation workflow now continues on comment failures
+- TUI keyboard handling for complex navigation scenarios
+- Scroll position edge cases in long message histories
+- File change detection in nested git repositories
+
 ## [0.3.1] - 2026-03-21
 
 ### Added
@@ -19,14 +99,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Full TUI (Terminal User Interface)** — component-based interactive mode using Ink v6 + React 19
+- Full TUI (Terminal User Interface) — component-based interactive mode using Ink v6 + React 19
   - Persistent full-screen layout: header, scrollable message area, input box, status bar
   - Streaming markdown rendering with syntax-highlighted code blocks (marked + marked-terminal + cli-highlight)
   - Collapsible tool call blocks with red/green diff view for file edits
   - 5 modal dialog overlays: ModelPicker, AgentSelector, PermissionDialog, SessionList, McpManager
   - Keybinding system: Tab/Shift-Tab agent cycling, Ctrl+X leader mode, Ctrl+K command palette
-  - Dark/light theme support via ThemeContext with `/theme` command
-  - Image attachment support: Ctrl+V clipboard paste and `/image` file attachment
+  - Dark/light theme support via ThemeContext with /theme command
+  - Image attachment support: Ctrl+V clipboard paste and /image file attachment
   - 12 slash commands: help, exit, clear, model, agent, status, sessions, mcp, theme, image, clear-images, memory
   - Event bus integration for real-time tool execution and permission prompt display
 - 29 TUI test files (1664 total tests) covering all components, contexts, hooks, and dialogs
@@ -35,21 +115,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Interactive mode (`alexi interactive`) now launches the TUI instead of the legacy readline REPL
-- `src/cli/interactive.ts` marked as `@deprecated` in favor of `src/cli/tui/`
+- Interactive mode (alexi interactive) now launches the TUI instead of the legacy readline REPL
+- src/cli/interactive.ts marked as @deprecated in favor of src/cli/tui/
 
 ### Dependencies
 
-- Added runtime: `marked`, `marked-terminal`, `cli-highlight`, `diff`, `terminal-link`
-- Added runtime: `ink-text-input`, `ink-select-input`, `ink-spinner`
-- Added dev: `ink-testing-library`, `@types/diff`
-- Existing: `ink` (v6.8.0) and `react` (v19.2.4) now actively used
+- Added runtime: marked, marked-terminal, cli-highlight, diff, terminal-link
+- Added runtime: ink-text-input, ink-select-input, ink-spinner
+- Added dev: ink-testing-library, @types/diff
+- Existing: ink (v6.8.0) and react (v19.2.4) now actively used
 
 ## [0.2.6] - 2026-03-19
 
 ### Added
 
-- Unit tests for TUI slash commands (`/image` and `/clear-images`)
+- Unit tests for TUI slash commands (/image and /clear-images)
   - Tests command registration with correct names and aliases
   - Tests clipboard paste functionality when no arguments provided
   - Tests file path handling for image attachments
@@ -62,8 +142,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Enhanced user configuration API with batch update support
-  - Added `updateGlobal()` function for atomic multi-key updates
-  - Added `UpdateGlobalOptions` interface with disposal control
+  - Added updateGlobal() function for atomic multi-key updates
+  - Added UpdateGlobalOptions interface with disposal control
   - Maintains backward compatibility with default dispose behavior
 - Edit tool now preserves line endings during replacements
   - Automatically detects CRLF vs LF line endings in target files
@@ -224,7 +304,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rule-based configuration system
 - Autonomous self-updating from upstream repositories
 
-[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/ausardcompany/alexi/compare/v0.3.1...v0.4.0
+[0.3.1]: https://github.com/ausardcompany/alexi/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/ausardcompany/alexi/compare/v0.2.6...v0.3.0
 [0.2.6]: https://github.com/ausardcompany/alexi/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/ausardcompany/alexi/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/ausardcompany/alexi/compare/v0.2.3...v0.2.4

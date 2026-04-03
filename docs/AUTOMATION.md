@@ -80,6 +80,7 @@ sequenceDiagram
 
 1. **Intelligent Scope Detection**: Analyzes changed files to determine which documentation needs updating
    - Core/CLI changes trigger `ARCHITECTURE.md` and `API.md` updates
+   - TUI changes trigger `ARCHITECTURE.md` with TUI diagrams
    - Routing changes trigger `ROUTING.md` updates
    - Provider changes trigger `PROVIDERS.md` updates
    - Workflow/script changes trigger `AUTOMATION.md` updates
@@ -98,6 +99,8 @@ sequenceDiagram
    - Maintain consistent documentation style
 
 4. **Force Regeneration**: Manual trigger option to regenerate all documentation
+
+5. **Error Handling**: Continues on comment failures to prevent workflow interruption
 
 #### Environment Variables
 
