@@ -74,7 +74,7 @@ export function PermissionDialog({
   return (
     <Box
       borderStyle="round"
-      borderColor={colors.warning}
+      borderColor={colors.borderFocused}
       paddingX={2}
       paddingY={1}
       flexDirection="column"

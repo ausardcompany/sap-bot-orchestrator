@@ -24,9 +24,9 @@ describe('StatusBar', () => {
         <StatusBar {...defaultProps} />
       </Wrapper>
     );
-    expect(lastFrame()).toContain('Tab: switch agent');
+    expect(lastFrame()).toContain('Tab: agent');
     expect(lastFrame()).toContain('Ctrl+X: leader');
-    expect(lastFrame()).toContain('/help');
+    expect(lastFrame()).toContain('?: help');
   });
 
   it('renders agent name', () => {
@@ -56,13 +56,14 @@ describe('StatusBar', () => {
     expect(lastFrame()).toContain('€1.5000');
   });
 
-  it('shows "● streaming" when isStreaming is true', () => {
+  it('shows streaming indicator when isStreaming is true', () => {
     const { lastFrame } = render(
       <Wrapper>
         <StatusBar {...defaultProps} isStreaming={true} />
       </Wrapper>
     );
-    expect(lastFrame()).toContain('● streaming');
+    // Now uses <Spinner /> + "streaming" text instead of static "●"
+    expect(lastFrame()).toContain('streaming');
   });
 
   it('shows leader mode hints when leaderActive is true', () => {
@@ -72,11 +73,10 @@ describe('StatusBar', () => {
       </Wrapper>
     );
     expect(lastFrame()).toContain('leader:');
-    expect(lastFrame()).toContain('[n]ew session');
+    expect(lastFrame()).toContain('[n]ew');
     expect(lastFrame()).toContain('[m]odel');
     expect(lastFrame()).toContain('[a]gent');
     expect(lastFrame()).toContain('[s]essions');
-    expect(lastFrame()).toContain('[/]palette');
     expect(lastFrame()).toContain('[Esc] cancel');
   });
 

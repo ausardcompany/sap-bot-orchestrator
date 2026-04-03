@@ -45,7 +45,7 @@ export function SessionList({ sessions, activeSessionId }: SessionListProps): Re
   return (
     <Box
       borderStyle="round"
-      borderColor={colors.info}
+      borderColor={colors.borderFocused}
       paddingX={2}
       paddingY={1}
       flexDirection="column"

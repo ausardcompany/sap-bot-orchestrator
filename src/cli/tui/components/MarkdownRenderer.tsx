@@ -26,10 +26,11 @@ function createMarkedInstance(width: number): Marked {
   return new Marked(
     markedTerminal({
       code: (code: string, lang: string): string => {
+        const label = lang ? `\x1b[2m${lang}\x1b[22m\n` : '';
         try {
-          return highlight(code, { language: lang, ignoreIllegals: true });
+          return label + highlight(code, { language: lang, ignoreIllegals: true });
         } catch {
-          return code;
+          return label + code;
         }
       },
       reflowText: true,

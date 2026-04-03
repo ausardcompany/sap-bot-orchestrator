@@ -47,7 +47,7 @@ export function ModelPicker({ currentModel, modelGroups }: ModelPickerProps): Re
   return (
     <Box
       borderStyle="round"
-      borderColor={colors.primary}
+      borderColor={colors.borderFocused}
       paddingX={2}
       paddingY={1}
       flexDirection="column"
