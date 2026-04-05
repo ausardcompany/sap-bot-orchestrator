@@ -7,6 +7,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-05
+
+### Added
+
+- **TUI Visual Overhaul** — Complete redesign matching OpenCode/Kilo layout and style
+  - ChatPage component with split-pane layout (messages left, sidebar right)
+  - LogsPage component with dedicated debug log viewer
+  - Sidebar component showing file changes with status indicators (+added, ~modified, -deleted)
+  - SplitPane component for resizable main/side panel layout
+  - LogViewer component with level filtering and search
+  - PageContext for chat/logs page routing
+  - SidebarContext for file change tracking
+- **New Dialog Components**
+  - HelpDialog: Keybinding reference with categorized entries
+  - FilePicker: Fuzzy file search using fzf with multi-select support
+  - QuitDialog: Confirmation dialog with session summary
+  - ThemeDialog: Interactive theme picker with preview
+  - ArgDialog: Command argument input form with validation
+- **Vim Mode Support**
+  - useVimMode hook with normal, insert, visual, and command modes
+  - Motion keys (hjkl, 0, $, w, b)
+  - Mode indicators and command buffer display
+  - Operators (x, dd, u, Ctrl+r, y, p)
+- **Enhanced Hooks**
+  - useLogCollector: Real-time log collection from event bus
+  - useFileChanges: Automatic file change tracking from tool execution events
+  - useScrollPosition: Scroll state management with keyboard navigation
+  - useVimMode: Complete Vim emulation for input editing
+- **Heap Monitoring**
+  - Automatic heap snapshot generation when memory exceeds 1GB threshold
+  - Rate-limited snapshots (1 minute minimum interval)
+  - Snapshots saved to .alexi/heap-snapshots/ for debugging
+- **Agent System Enhancements**
+  - Read-only bash command rules for ask agent
+  - Explicit deny for write operations (git commit, file modifications)
+  - Allow rules for informational commands (ls, cat, grep, git status, git log)
+  - Agent deprecation support via deprecated field
+- **Permission System**
+  - Config path protection for .kilo/, .kilocode/, .opencode/, .alexi/ directories
+  - Protection for root-level config files (kilo.json, alexi.json, AGENTS.md)
+  - Exclusion of plans/ subdirectory from config protection
+  - Global config directory protection
+  - Metadata support to disable "Allow always" for sensitive operations
+- **Skill System**
+  - Skill registry for reusable AI prompts and behaviors
+  - Markdown frontmatter support for skill definitions
+  - Skill loading from project and global directories
+  - Category and tag-based skill organization
+  - Alias support for skill names
+  - Built-in skill protection (alexi-config, kilo-config)
+- **Session Headers**
+  - x-session-affinity header for load-balanced deployments
+  - x-parent-session-id header for session hierarchy tracking
+  - Session context utilities for header generation
+- **User Configuration**
+  - macOS managed preferences support via defaults system
+  - MDM policy enforcement for enterprise deployments
+  - Managed keys: disableTelemetry, allowedProviders, defaultModel, proxyUrl
+  - Batch configuration updates with updateGlobal()
+  - UpdateGlobalOptions interface with disposal control
+
+### Changed
+
+- TUI layout completely redesigned to match OpenCode visual style
+  - Removed separate header component in favor of unified StatusBar
+  - Messages now in scrollable main area with sidebar for file changes
+  - Status bar includes model info, token count, cost, and session ID
+  - Input box with top border separator
+- Theme system updated with new color definitions
+  - Added statusBarBg, sidebarBg, sidebarBorder, scrollbar colors
+  - Enhanced diff colors with line number backgrounds
+  - Added pillBg and pillText for agent badges
+  - Updated dark and light themes with OpenCode color scheme
+- Dialog system expanded with 5 new dialog types
+  - help, theme, file-picker, quit, arg-input
+  - All dialogs follow consistent styling and keyboard navigation
+- Event bus enhanced with metadata support for permission events
+- Package dependencies updated
+  - Added fzf (v0.5.2) for fuzzy file search
+  - Added terminal-image (v4.2.0) for image rendering
+  - Updated @typescript-eslint packages to v8.58.0
+  - Updated @testing-library/react to v16.3.2
+
+### Fixed
+
+- TUI components now properly handle terminal resize events
+- Dialog overlays correctly positioned and styled
+- Keybinding conflicts resolved with leader mode
+- Memory leaks in long-running TUI sessions addressed with heap monitoring
+
 ## [0.3.1] - 2026-03-21
 
 ### Added
@@ -104,17 +194,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Autocomplete system unified between readline REPL and Ink TUI
 - Documentation workflow improved with better file path handling
 - Enhanced clipboard utilities with osascript fallback for macOS
-- Updated dependencies:
-  - @inquirer/prompts from 8.3.0 to 8.3.2
-  - @commitlint/config-conventional from 20.4.3 to 20.5.0
-  - @typescript-eslint/parser from 8.34.1 to 8.57.0
-  - @vitejs/plugin-react from 5.2.0 to 6.0.1
-  - @vitest/coverage-v8 from 4.0.0 to 4.1.0
-  - hono from 4.12.5 to 4.12.8
-  - nanoid from 5.1.6 to 5.1.7
-  - puppeteer from 24.38.0 to 24.39.1
-  - simple-git from 3.32.3 to 3.33.0
-  - vitest from 4.0.0 to 4.1.0
+- Updated dependencies
 
 ### Fixed
 
@@ -224,7 +304,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rule-based configuration system
 - Autonomous self-updating from upstream repositories
 
-[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/ausardcompany/alexi/compare/v0.3.1...v0.4.0
+[0.3.1]: https://github.com/ausardcompany/alexi/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/ausardcompany/alexi/compare/v0.2.6...v0.3.0
 [0.2.6]: https://github.com/ausardcompany/alexi/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/ausardcompany/alexi/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/ausardcompany/alexi/compare/v0.2.3...v0.2.4
