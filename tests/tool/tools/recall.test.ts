@@ -192,12 +192,14 @@ describe('Recall Tool', () => {
       messages: [
         {
           role: 'user',
-          content: 'test test test',
+          content:
+            'This message contains the keyword multiple times: keyword, keyword, and keyword again. It has enough text to avoid hitting the relevance cap.',
           timestamp: Date.now(),
         },
         {
           role: 'user',
-          content: 'test',
+          content:
+            'This message contains the keyword only once but has similar length to ensure different density.',
           timestamp: Date.now(),
         },
       ],
@@ -211,7 +213,7 @@ describe('Recall Tool', () => {
 
     const result = await recallTool.execute(
       {
-        query: 'test',
+        query: 'keyword',
       },
       context
     );
