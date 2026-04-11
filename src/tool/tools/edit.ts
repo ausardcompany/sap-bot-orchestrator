@@ -8,16 +8,27 @@ import * as path from 'path';
 import { defineTool, type ToolResult } from '../index.js';
 
 const EditParamsSchema = z.object({
-  filePath: z.string().describe('Absolute path to the file to modify'),
-  oldString: z.string().describe('The text to replace'),
-  newString: z.string().describe('The text to replace it with'),
+  filePath: z
+    .string()
+    .describe('Path to the file to edit, relative to the project root or absolute'),
+  oldString: z
+    .string()
+    .describe('The exact text to find and replace. Must match exactly including whitespace.'),
+  newString: z.string().describe('The new text to replace the old text with'),
   replaceAll: z.boolean().optional().describe('Replace all occurrences (default: false)'),
+  startLine: z
+    .number()
+    .optional()
+    .describe('Optional: Starting line number hint for faster matching'),
+  endLine: z.number().optional().describe('Optional: Ending line number hint for faster matching'),
 });
 
 interface EditResult {
   path: string;
   replacements: number;
   bytesChanged: number;
+  startLine?: number;
+  endLine?: number;
 }
 
 export const editTool = defineTool<typeof EditParamsSchema, EditResult>({
@@ -64,8 +75,19 @@ Usage:
       const oldString = convertToLineEnding(normalizeLineEndings(params.oldString), lineEnding);
       const newString = convertToLineEnding(normalizeLineEndings(params.newString), lineEnding);
 
+      // Use line number hints if provided for faster matching
+      let searchContent = content;
+      let lineOffset = 0;
+      if (params.startLine !== undefined && params.endLine !== undefined) {
+        const lines = content.split(lineEnding);
+        const startIdx = Math.max(0, params.startLine - 1);
+        const endIdx = Math.min(lines.length, params.endLine);
+        searchContent = lines.slice(startIdx, endIdx).join(lineEnding);
+        lineOffset = startIdx;
+      }
+
       // Check for matches
-      const matches = content.split(oldString).length - 1;
+      const matches = searchContent.split(oldString).length - 1;
 
       if (matches === 0) {
         return {
@@ -99,12 +121,31 @@ Usage:
         Buffer.byteLength(newContent, 'utf-8') - Buffer.byteLength(content, 'utf-8')
       );
 
+      // Calculate line numbers for the change
+      let startLine: number | undefined;
+      let endLine: number | undefined;
+      if (params.startLine !== undefined && params.endLine !== undefined) {
+        startLine = params.startLine;
+        endLine = params.endLine;
+      } else {
+        // Try to find the line numbers of the first replacement
+        const beforeReplacement = content.indexOf(oldString);
+        if (beforeReplacement !== -1) {
+          const beforeLines = content.substring(0, beforeReplacement).split(lineEnding);
+          startLine = beforeLines.length;
+          const replacementLines = oldString.split(lineEnding).length;
+          endLine = startLine + replacementLines - 1;
+        }
+      }
+
       const toolResult = {
         success: true,
         data: {
           path: filePath,
           replacements,
           bytesChanged,
+          startLine,
+          endLine,
         },
       };
 
