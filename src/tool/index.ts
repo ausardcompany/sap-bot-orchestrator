@@ -369,17 +369,29 @@ export function defineTool<TParams extends z.ZodType, TResult>(
 // Tool registry
 class ToolRegistry {
   private tools: Map<string, Tool<any, any>> = new Map();
+  private dynamicTools: Map<string, Tool<any, any>> = new Map();
 
   register<TParams extends z.ZodType, TResult>(tool: Tool<TParams, TResult>): void {
     this.tools.set(tool.name, tool);
   }
 
+  registerDynamic<TParams extends z.ZodType, TResult>(tool: Tool<TParams, TResult>): void {
+    if (this.tools.has(tool.name) || this.dynamicTools.has(tool.name)) {
+      throw new Error(`Tool with name '${tool.name}' is already registered`);
+    }
+    this.dynamicTools.set(tool.name, tool);
+  }
+
+  unregisterDynamic(name: string): boolean {
+    return this.dynamicTools.delete(name);
+  }
+
   get(name: string): Tool<any, any> | undefined {
-    return this.tools.get(name);
+    return this.tools.get(name) || this.dynamicTools.get(name);
   }
 
   list(): Tool<any, any>[] {
-    return Array.from(this.tools.values());
+    return [...Array.from(this.tools.values()), ...Array.from(this.dynamicTools.values())];
   }
 
   getSchemas(): Array<{
@@ -407,6 +419,16 @@ export function registerTool<TParams extends z.ZodType, TResult>(
   getToolRegistry().register(tool);
 }
 
+export function registerDynamicTool<TParams extends z.ZodType, TResult>(
+  tool: Tool<TParams, TResult>
+): void {
+  getToolRegistry().registerDynamic(tool);
+}
+
+export function unregisterDynamicTool(name: string): boolean {
+  return getToolRegistry().unregisterDynamic(name);
+}
+
 export function getTool(name: string): Tool<any, any> | undefined {
   return getToolRegistry().get(name);
 }
@@ -428,3 +450,13 @@ export {
   cleanupToolOutputs,
   TOOL_OUTPUT_DIR,
 };
+
+// Re-export schema types
+export type {
+  ToolID,
+  ToolCallID,
+  ToolResultID,
+  ToolExecutionState,
+  ToolPermissionLevel,
+  ToolMetadata,
+} from './schema.js';

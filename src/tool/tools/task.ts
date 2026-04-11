@@ -45,9 +45,27 @@ Usage:
 
   parameters: TaskParamsSchema,
 
-  async execute(params, _context): Promise<ToolResult<TaskResult>> {
+  async execute(params, context): Promise<ToolResult<TaskResult>> {
     const { nanoid } = await import('nanoid');
     const registry = getAgentRegistry();
+
+    // Security: Deny task tool for subagent sessions to prevent recursive spawning
+    // Check if we're in a subagent context by looking at session metadata
+    if (context.sessionId && context.sessionId.includes('subagent')) {
+      return {
+        success: false,
+        error: 'Task tool is not available for subagent sessions',
+      };
+    }
+
+    // Validate that we're not spawning a primary agent from a task
+    if (params.subagent_type === 'primary') {
+      return {
+        success: false,
+        error:
+          "Cannot spawn primary agents from task tool. Use 'general' or 'explore' agent types.",
+      };
+    }
 
     // Determine which agent to use
     let agentId = 'explore'; // Default
