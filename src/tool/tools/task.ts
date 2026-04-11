@@ -62,7 +62,8 @@ Usage:
     if (params.subagent_type === 'primary') {
       return {
         success: false,
-        error: "Cannot spawn primary agents from task tool. Use 'general' or 'explore' agent types.",
+        error:
+          "Cannot spawn primary agents from task tool. Use 'general' or 'explore' agent types.",
       };
     }
 
