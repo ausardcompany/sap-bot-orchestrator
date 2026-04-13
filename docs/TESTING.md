@@ -229,6 +229,7 @@ All file operation tools have comprehensive test coverage:
 | `edit` | `tests/tool/tools/edit.test.ts` | 15+ cases |
 | `glob` | `tests/tool/tools/glob.test.ts` | 16+ cases |
 | `grep` | `tests/tool/tools/grep.test.ts` | 20+ cases |
+| `recall` | `tests/tool/tools/recall.test.ts` | 10+ cases |
 
 ### TUI Command Test Coverage
 
@@ -268,6 +269,18 @@ Each tool is tested across multiple categories:
    - Detect and preserve CRLF vs LF line endings
    - Normalize parameters to match file's line ending style
    - Ensure replacements maintain original file format
+
+6. **Session Search** (Recall Tool)
+   - Query matching and relevance scoring
+   - Session limit enforcement
+   - Current session exclusion
+   - Empty result handling
+
+7. **Dynamic Tool Registration**
+   - Runtime tool registration and unregistration
+   - Conflict prevention with built-in tools
+   - Tool retrieval from combined registry
+   - Schema generation for dynamic tools
 
 #### Testing Line Ending Preservation
 
@@ -310,6 +323,180 @@ describe('edit tool line endings', () => {
     const updated = await fs.readFile(filePath, 'utf-8');
     expect(updated).not.toContain('\r\n');
     expect(updated).toBe('line1\nmodified\nline3\n');
+  });
+});
+```
+
+#### Testing Session Search (Recall Tool)
+
+The recall tool searches through past conversation sessions:
+
+```typescript
+describe('Recall Tool', () => {
+  let tempDir: string;
+  let sessionsDir: string;
+  let context: ToolContext;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'recall-test-'));
+    sessionsDir = path.join(tempDir, '.alexi', 'sessions');
+    await fs.mkdir(sessionsDir, { recursive: true });
+
+    // Override HOME for testing
+    process.env.HOME = tempDir;
+
+    context = {
+      workdir: tempDir,
+      sessionId: 'test-session-123',
+    };
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  it('should return empty results when no sessions exist', async () => {
+    const result = await recallTool.execute(
+      { query: 'test' },
+      context
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.data?.results).toEqual([]);
+    expect(result.data?.totalMatches).toBe(0);
+  });
+
+  it('should find matches in session messages', async () => {
+    // Create a test session
+    const sessionData = {
+      metadata: {
+        id: 'session-1',
+        created: Date.now(),
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Hello, I need help with TypeScript',
+          timestamp: Date.now(),
+        },
+        {
+          role: 'assistant',
+          content: 'I can help you with TypeScript. What do you need?',
+          timestamp: Date.now(),
+        },
+      ],
+    };
+
+    await fs.writeFile(
+      path.join(sessionsDir, 'session-1.json'),
+      JSON.stringify(sessionData),
+      'utf-8'
+    );
+
+    const result = await recallTool.execute(
+      { query: 'TypeScript' },
+      context
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.data?.totalMatches).toBeGreaterThan(0);
+    expect(result.data?.results.length).toBeGreaterThan(0);
+    expect(result.data?.results[0].content).toContain('TypeScript');
+  });
+
+  it('should exclude current session when requested', async () => {
+    // Create current session and other sessions
+    // Verify current session excluded from results
+  });
+
+  it('should sort results by relevance', async () => {
+    // Create sessions with varying relevance scores
+    // Verify results sorted by relevance descending
+  });
+
+  it('should respect session limit', async () => {
+    // Create more sessions than limit
+    // Verify only sessionLimit sessions searched
+  });
+});
+```
+
+#### Testing Dynamic Tool Registration
+
+Dynamic tool registration enables runtime tool management:
+
+```typescript
+describe('Dynamic Tool Registration', () => {
+  it('should register and retrieve dynamic tools', () => {
+    const dynamicTool = defineTool({
+      name: 'dynamic-test',
+      description: 'Test dynamic tool',
+      parameters: z.object({ value: z.string() }),
+      execute: async (params) => ({
+        success: true,
+        data: { result: params.value }
+      }),
+    });
+
+    registerDynamicTool(dynamicTool);
+
+    const retrieved = getTool('dynamic-test');
+    expect(retrieved).toBeDefined();
+    expect(retrieved?.name).toBe('dynamic-test');
+  });
+
+  it('should prevent duplicate tool registration', () => {
+    const tool1 = defineTool({
+      name: 'duplicate',
+      description: 'First tool',
+      parameters: z.object({}),
+      execute: async () => ({ success: true }),
+    });
+
+    const tool2 = defineTool({
+      name: 'duplicate',
+      description: 'Second tool',
+      parameters: z.object({}),
+      execute: async () => ({ success: true }),
+    });
+
+    registerDynamicTool(tool1);
+    
+    expect(() => registerDynamicTool(tool2)).toThrow(
+      "Tool with name 'duplicate' is already registered"
+    );
+  });
+
+  it('should unregister dynamic tools', () => {
+    const tool = defineTool({
+      name: 'temp-tool',
+      description: 'Temporary tool',
+      parameters: z.object({}),
+      execute: async () => ({ success: true }),
+    });
+
+    registerDynamicTool(tool);
+    expect(getTool('temp-tool')).toBeDefined();
+
+    const removed = unregisterDynamicTool('temp-tool');
+    expect(removed).toBe(true);
+    expect(getTool('temp-tool')).toBeUndefined();
+  });
+
+  it('should list all tools including dynamic', () => {
+    const dynamicTool = defineTool({
+      name: 'listed-tool',
+      description: 'Tool for listing',
+      parameters: z.object({}),
+      execute: async () => ({ success: true }),
+    });
+
+    const initialCount = getAllToolSchemas().length;
+    registerDynamicTool(dynamicTool);
+    
+    const schemas = getAllToolSchemas();
+    expect(schemas.length).toBe(initialCount + 1);
+    expect(schemas.some(s => s.name === 'listed-tool')).toBe(true);
   });
 });
 ```

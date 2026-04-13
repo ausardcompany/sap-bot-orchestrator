@@ -617,6 +617,79 @@ interface Session {
 }
 ```
 
+### Session Search and Recall
+
+The recall tool enables searching through past conversation sessions for cross-session context retrieval. This allows agents to remember and reference information from previous conversations.
+
+#### Recall Tool Configuration
+
+The recall tool searches session files stored in `~/.alexi/sessions/` and returns relevant matches based on query terms.
+
+**Parameters**:
+
+```typescript
+interface RecallParams {
+  query: string;                    // Search query to find relevant information
+  sessionLimit?: number;            // Maximum sessions to search (default: 10)
+  includeCurrentSession?: boolean;  // Include current session in results (default: false)
+}
+```
+
+**Result Format**:
+
+```typescript
+interface RecallResult {
+  results: Array<{
+    sessionId: string;      // Session identifier
+    messageId: string;      // Message identifier within session
+    content: string;        // Message content (truncated to 500 chars)
+    relevance: number;      // Relevance score (0-100)
+    timestamp: string;      // Message timestamp
+  }>;
+  totalMatches: number;     // Total number of matches found
+}
+```
+
+**Relevance Scoring**:
+
+The recall tool calculates relevance based on query term frequency and density:
+
+```typescript
+function calculateRelevance(content: string, query: string): number {
+  const occurrences = (content.match(new RegExp(query, 'gi')) || []).length;
+  const density = occurrences / (content.length / 100);
+  return Math.min(density * 10, 100);
+}
+```
+
+**Usage Example**:
+
+```typescript
+import { recallTool } from './tool/tools/recall.js';
+
+const result = await recallTool.execute({
+  query: 'TypeScript async patterns',
+  sessionLimit: 20,
+  includeCurrentSession: false
+}, context);
+
+if (result.success) {
+  console.log(`Found ${result.data.totalMatches} matches`);
+  result.data.results.forEach(match => {
+    console.log(`Session: ${match.sessionId}, Relevance: ${match.relevance}`);
+    console.log(match.content);
+  });
+}
+```
+
+**Performance Considerations**:
+
+- Searches most recent sessions first (sorted by modification time)
+- Returns top 20 most relevant results
+- Limits content preview to 500 characters per match
+- No permission checks required (read-only operation)
+- Automatically skips current session unless explicitly included
+
 ## Configuration Best Practices
 
 1. **Use Environment Variables for Secrets**: Never commit API keys or credentials to version control

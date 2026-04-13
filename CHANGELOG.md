@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-04-13
+
+### Added
+
+- New recall tool for searching through past conversation sessions
+  - Enables cross-session context recall for improved agent memory
+  - Searches message content with relevance scoring
+  - Returns top 20 most relevant matches sorted by relevance
+  - Supports session limit configuration (default: 10 sessions)
+  - Optional current session exclusion
+  - No permission checks required (read-only operation)
+- Dynamic tool registration system for runtime tool management
+  - Added registerDynamicTool() function for registering tools at runtime
+  - Added unregisterDynamicTool() function for removing dynamic tools
+  - Separate registry for dynamic tools to prevent conflicts with built-in tools
+  - Tool registry now checks both static and dynamic tool maps
+- Tool schema type definitions with branded IDs for type safety
+  - Added src/tool/schema.ts with centralized type definitions
+  - ToolID, ToolCallID, ToolResultID branded types
+  - ToolExecutionState enum (pending, running, completed, failed, cancelled)
+  - ToolPermissionLevel enum (allow, ask, deny)
+  - ToolMetadata interface for tool registration metadata
+
+### Changed
+
+- Enhanced edit tool with line number hints for faster matching
+  - Added optional startLine parameter for specifying search region start
+  - Added optional endLine parameter for specifying search region end
+  - Edit tool now returns startLine and endLine in result data
+  - Automatically calculates line numbers for replacements when hints not provided
+  - Improved performance for large files by limiting search scope
+- Task tool security enhancements to prevent recursive agent spawning
+  - Deny task tool execution for subagent sessions (checks sessionId for 'subagent')
+  - Prevent spawning primary agents from task tool (only 'general' and 'explore' allowed)
+  - Added validation error messages for security violations
+- Tool registry architecture improved with separate dynamic tool storage
+  - Built-in tools stored in primary tools map
+  - Dynamic tools stored in separate dynamicTools map
+  - list() method now returns combined array of all tools
+  - get() method checks both maps for tool resolution
+
 ### Fixed
 
 - Resolved ESLint naming conflicts in tool schema definitions by using private schema constants with underscore prefixes
@@ -23,14 +64,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Full TUI (Terminal User Interface)** — component-based interactive mode using Ink v6 + React 19
+- Full TUI (Terminal User Interface) - component-based interactive mode using Ink v6 + React 19
   - Persistent full-screen layout: header, scrollable message area, input box, status bar
   - Streaming markdown rendering with syntax-highlighted code blocks (marked + marked-terminal + cli-highlight)
   - Collapsible tool call blocks with red/green diff view for file edits
   - 5 modal dialog overlays: ModelPicker, AgentSelector, PermissionDialog, SessionList, McpManager
   - Keybinding system: Tab/Shift-Tab agent cycling, Ctrl+X leader mode, Ctrl+K command palette
-  - Dark/light theme support via ThemeContext with `/theme` command
-  - Image attachment support: Ctrl+V clipboard paste and `/image` file attachment
+  - Dark/light theme support via ThemeContext with /theme command
+  - Image attachment support: Ctrl+V clipboard paste and /image file attachment
   - 12 slash commands: help, exit, clear, model, agent, status, sessions, mcp, theme, image, clear-images, memory
   - Event bus integration for real-time tool execution and permission prompt display
 - 29 TUI test files (1664 total tests) covering all components, contexts, hooks, and dialogs
@@ -39,21 +80,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Interactive mode (`alexi interactive`) now launches the TUI instead of the legacy readline REPL
-- `src/cli/interactive.ts` marked as `@deprecated` in favor of `src/cli/tui/`
+- Interactive mode (alexi interactive) now launches the TUI instead of the legacy readline REPL
+- src/cli/interactive.ts marked as deprecated in favor of src/cli/tui/
 
 ### Dependencies
 
-- Added runtime: `marked`, `marked-terminal`, `cli-highlight`, `diff`, `terminal-link`
-- Added runtime: `ink-text-input`, `ink-select-input`, `ink-spinner`
-- Added dev: `ink-testing-library`, `@types/diff`
-- Existing: `ink` (v6.8.0) and `react` (v19.2.4) now actively used
+- Added runtime: marked, marked-terminal, cli-highlight, diff, terminal-link
+- Added runtime: ink-text-input, ink-select-input, ink-spinner
+- Added dev: ink-testing-library, @types/diff
+- Existing: ink (v6.8.0) and react (v19.2.4) now actively used
 
 ## [0.2.6] - 2026-03-19
 
 ### Added
 
-- Unit tests for TUI slash commands (`/image` and `/clear-images`)
+- Unit tests for TUI slash commands (/image and /clear-images)
   - Tests command registration with correct names and aliases
   - Tests clipboard paste functionality when no arguments provided
   - Tests file path handling for image attachments
@@ -66,8 +107,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Enhanced user configuration API with batch update support
-  - Added `updateGlobal()` function for atomic multi-key updates
-  - Added `UpdateGlobalOptions` interface with disposal control
+  - Added updateGlobal() function for atomic multi-key updates
+  - Added UpdateGlobalOptions interface with disposal control
   - Maintains backward compatibility with default dispose behavior
 - Edit tool now preserves line endings during replacements
   - Automatically detects CRLF vs LF line endings in target files
@@ -142,7 +183,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Ctrl+V screenshot paste on macOS now works without installing pngpaste — added native osascript fallback that uses AppleScript to read clipboard images
+- Ctrl+V screenshot paste on macOS now works without installing pngpaste - added native osascript fallback that uses AppleScript to read clipboard images
 
 ## [0.2.1] - 2026-03-15
 
@@ -153,7 +194,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Inline autocomplete for slash commands in the TUI input box — shows filtered suggestions when typing /
+- Inline autocomplete for slash commands in the TUI input box - shows filtered suggestions when typing /
 - Keyboard navigation (Up/Down/Tab) and acceptance (Enter/Tab) for autocomplete suggestions
 - Command Palette now displays all 11 registered slash commands
 
@@ -228,7 +269,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rule-based configuration system
 - Autonomous self-updating from upstream repositories
 
-[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.4.7...HEAD
+[0.4.7]: https://github.com/ausardcompany/alexi/compare/v0.3.1...v0.4.7
+[0.3.1]: https://github.com/ausardcompany/alexi/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/ausardcompany/alexi/compare/v0.2.6...v0.3.0
 [0.2.6]: https://github.com/ausardcompany/alexi/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/ausardcompany/alexi/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/ausardcompany/alexi/compare/v0.2.3...v0.2.4

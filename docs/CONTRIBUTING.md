@@ -257,6 +257,59 @@ graph LR
    export type ToolID = z.infer<typeof ToolID>;
    ```
 
+9. **Dynamic Tool Registration**: Use the dynamic tool registry for runtime tool management
+   ```typescript
+   // Good - Register tools that need to be added/removed at runtime
+   import { registerDynamicTool, unregisterDynamicTool } from './tool/index.js';
+   
+   const customTool = defineTool({
+     name: 'custom-operation',
+     description: 'Custom runtime tool',
+     parameters: z.object({ input: z.string() }),
+     execute: async (params) => ({ success: true, data: params.input }),
+   });
+   
+   // Register at runtime
+   registerDynamicTool(customTool);
+   
+   // Later, remove when no longer needed
+   unregisterDynamicTool('custom-operation');
+   
+   // Bad - Modifying built-in tool registry directly
+   // Built-in tools should be registered via registerBuiltInTools()
+   ```
+
+10. **Tool Security**: Implement proper security checks for agent-spawning tools
+    ```typescript
+    // Good - Prevent recursive agent spawning
+    async execute(params, context): Promise<ToolResult<TaskResult>> {
+      // Check if we're in a subagent context
+      if (context.sessionId && context.sessionId.includes('subagent')) {
+        return {
+          success: false,
+          error: 'Task tool is not available for subagent sessions',
+        };
+      }
+      
+      // Validate agent type restrictions
+      if (params.subagent_type === 'primary') {
+        return {
+          success: false,
+          error: "Cannot spawn primary agents from task tool.",
+        };
+      }
+      
+      // Proceed with safe execution
+    }
+    
+    // Bad - No security checks allowing recursive spawning
+    async execute(params, context): Promise<ToolResult<TaskResult>> {
+      // Directly spawn any agent type without validation
+      const agent = registry.get(params.subagent_type);
+      return await agent.execute();
+    }
+    ```
+
 ### File Organization
 
 ```
