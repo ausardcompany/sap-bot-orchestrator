@@ -53,17 +53,32 @@ function matchesInclude(filename: string, include?: string): boolean {
 /**
  * Recursively find files
  */
-async function findFiles(dir: string, include?: string, maxFiles = 10000): Promise<string[]> {
+async function findFiles(
+  dir: string,
+  include?: string,
+  maxFiles = 10000,
+  signal?: AbortSignal
+): Promise<string[]> {
   const files: string[] = [];
 
   async function walk(currentDir: string): Promise<void> {
     if (files.length >= maxFiles) return;
+
+    // Check for abort signal
+    if (signal?.aborted) {
+      throw new Error('Operation aborted');
+    }
 
     try {
       const entries = await fs.readdir(currentDir, { withFileTypes: true });
 
       for (const entry of entries) {
         if (files.length >= maxFiles) break;
+
+        // Check abort signal in loop
+        if (signal?.aborted) {
+          throw new Error('Operation aborted');
+        }
 
         const fullPath = path.join(currentDir, entry.name);
 
@@ -116,11 +131,27 @@ Usage:
       : context.workdir;
 
     try {
+      // Check for abort before starting
+      if (context.signal?.aborted) {
+        return {
+          success: false,
+          error: 'Operation aborted',
+        };
+      }
+
       const regex = new RegExp(params.pattern);
-      const files = await findFiles(searchPath, params.include);
+      const files = await findFiles(searchPath, params.include, 10000, context.signal);
       const matches: GrepMatch[] = [];
 
       for (const file of files) {
+        // Check abort signal between files
+        if (context.signal?.aborted) {
+          return {
+            success: false,
+            error: 'Operation aborted',
+          };
+        }
+
         try {
           const content = await fs.readFile(file, 'utf-8');
           const lines = content.split('\n');

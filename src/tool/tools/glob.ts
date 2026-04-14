@@ -20,11 +20,20 @@ interface GlobResult {
 /**
  * Simple glob implementation supporting ** and *
  */
-async function globMatch(baseDir: string, pattern: string): Promise<string[]> {
+async function globMatch(
+  baseDir: string,
+  pattern: string,
+  signal?: AbortSignal
+): Promise<string[]> {
   const matches: string[] = [];
   const parts = pattern.split('/');
 
   async function walk(dir: string, partIndex: number): Promise<void> {
+    // Check for abort signal
+    if (signal?.aborted) {
+      throw new Error('Operation aborted');
+    }
+
     if (partIndex >= parts.length) return;
 
     const part = parts[partIndex];
@@ -34,6 +43,11 @@ async function globMatch(baseDir: string, pattern: string): Promise<string[]> {
       const entries = await fs.readdir(dir, { withFileTypes: true });
 
       for (const entry of entries) {
+        // Check abort signal in loop
+        if (signal?.aborted) {
+          throw new Error('Operation aborted');
+        }
+
         const fullPath = path.join(dir, entry.name);
 
         if (part === '**') {
@@ -115,7 +129,31 @@ Usage:
       : context.workdir;
 
     try {
-      let matches = await globMatch(searchPath, params.pattern);
+      // Check for abort before starting
+      if (context.signal?.aborted) {
+        return {
+          success: false,
+          error: 'Operation aborted',
+        };
+      }
+
+      // Validate that searchPath is a directory, not a file
+      try {
+        const stat = await fs.stat(searchPath);
+        if (!stat.isDirectory()) {
+          return {
+            success: false,
+            error: `glob path must be a directory, not a file: ${searchPath}`,
+          };
+        }
+      } catch (err) {
+        return {
+          success: false,
+          error: `Cannot access path: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
+
+      let matches = await globMatch(searchPath, params.pattern, context.signal);
 
       // Sort by modification time (most recent first)
       const withStats = await Promise.all(
