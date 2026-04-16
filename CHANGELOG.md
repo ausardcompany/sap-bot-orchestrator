@@ -7,9 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- New recall tool for cross-session context search
+  - Search through past conversation sessions with relevance scoring
+  - Configurable session limit and current session exclusion
+  - Returns top 20 most relevant matches sorted by relevance
+  - Read-only operation requiring no permissions
+- Dynamic tool registration system
+  - registerDynamicTool() for runtime tool registration
+  - unregisterDynamicTool() for removing dynamic tools
+  - Separate registry for dynamic tools to prevent naming conflicts
+- Centralized tool schema definitions in src/tool/schema.ts
+  - Branded ID types: ToolID, ToolCallID, ToolResultID
+  - ToolExecutionState enum for tracking tool execution lifecycle
+  - ToolPermissionLevel enum for permission configuration
+  - ToolMetadata interface for tool registration metadata
+- Enhanced edit tool with line number hints
+  - Optional startLine and endLine parameters for faster matching
+  - Returns line number information in edit results
+  - Improved performance for large files with targeted edits
+- Abort signal support in file operation tools
+  - glob tool now respects AbortSignal for cancellable searches
+  - grep tool now respects AbortSignal for cancellable searches
+  - Proper cleanup when operations are aborted
+
+### Changed
+
+- Enhanced permission system for external directory access
+  - Config path protection now distinguishes between file tool reads and bash operations
+  - File tools can read global config without prompting
+  - Edit operations on config files still require permission
+  - Bash-originated external directory requests are properly gated
+- Updated dependency versions
+  - ink from 6.8.0 to 7.0.0
+  - hono from 4.12.11 to 4.12.12
+  - react from 19.2.4 to 19.2.5
+  - simple-git from 3.33.0 to 3.36.0
+  - terminal-image from 4.2.0 to 4.3.0
+  - prettier from 3.5.3 to 3.8.2
+  - typescript-eslint/eslint-plugin from 8.58.0 to 8.58.1
+  - vitest/coverage-v8 from 4.1.2 to 4.1.4
+
 ### Fixed
 
 - Resolved ESLint naming conflicts in tool schema definitions by using private schema constants with underscore prefixes
+- Improved glob tool validation to reject file paths and only accept directories
+- Enhanced grep tool error handling for abort signals
 
 ## [0.3.1] - 2026-03-21
 
@@ -23,14 +67,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Full TUI (Terminal User Interface)** — component-based interactive mode using Ink v6 + React 19
+- Full TUI (Terminal User Interface) — component-based interactive mode using Ink v6 + React 19
   - Persistent full-screen layout: header, scrollable message area, input box, status bar
   - Streaming markdown rendering with syntax-highlighted code blocks (marked + marked-terminal + cli-highlight)
   - Collapsible tool call blocks with red/green diff view for file edits
   - 5 modal dialog overlays: ModelPicker, AgentSelector, PermissionDialog, SessionList, McpManager
   - Keybinding system: Tab/Shift-Tab agent cycling, Ctrl+X leader mode, Ctrl+K command palette
-  - Dark/light theme support via ThemeContext with `/theme` command
-  - Image attachment support: Ctrl+V clipboard paste and `/image` file attachment
+  - Dark/light theme support via ThemeContext with /theme command
+  - Image attachment support: Ctrl+V clipboard paste and /image file attachment
   - 12 slash commands: help, exit, clear, model, agent, status, sessions, mcp, theme, image, clear-images, memory
   - Event bus integration for real-time tool execution and permission prompt display
 - 29 TUI test files (1664 total tests) covering all components, contexts, hooks, and dialogs
@@ -39,21 +83,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Interactive mode (`alexi interactive`) now launches the TUI instead of the legacy readline REPL
-- `src/cli/interactive.ts` marked as `@deprecated` in favor of `src/cli/tui/`
+- Interactive mode (alexi interactive) now launches the TUI instead of the legacy readline REPL
+- src/cli/interactive.ts marked as deprecated in favor of src/cli/tui/
 
 ### Dependencies
 
-- Added runtime: `marked`, `marked-terminal`, `cli-highlight`, `diff`, `terminal-link`
-- Added runtime: `ink-text-input`, `ink-select-input`, `ink-spinner`
-- Added dev: `ink-testing-library`, `@types/diff`
-- Existing: `ink` (v6.8.0) and `react` (v19.2.4) now actively used
+- Added runtime: marked, marked-terminal, cli-highlight, diff, terminal-link
+- Added runtime: ink-text-input, ink-select-input, ink-spinner
+- Added dev: ink-testing-library, @types/diff
+- Existing: ink (v6.8.0) and react (v19.2.4) now actively used
 
 ## [0.2.6] - 2026-03-19
 
 ### Added
 
-- Unit tests for TUI slash commands (`/image` and `/clear-images`)
+- Unit tests for TUI slash commands (/image and /clear-images)
   - Tests command registration with correct names and aliases
   - Tests clipboard paste functionality when no arguments provided
   - Tests file path handling for image attachments
@@ -66,8 +110,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Enhanced user configuration API with batch update support
-  - Added `updateGlobal()` function for atomic multi-key updates
-  - Added `UpdateGlobalOptions` interface with disposal control
+  - Added updateGlobal() function for atomic multi-key updates
+  - Added UpdateGlobalOptions interface with disposal control
   - Maintains backward compatibility with default dispose behavior
 - Edit tool now preserves line endings during replacements
   - Automatically detects CRLF vs LF line endings in target files

@@ -257,6 +257,45 @@ graph LR
    export type ToolID = z.infer<typeof ToolID>;
    ```
 
+9. **Abort Signal Support**: Implement cancellation support for long-running operations
+   ```typescript
+   // Good - Check abort signal in loops and before expensive operations
+   async function processFiles(files: string[], signal?: AbortSignal): Promise<void> {
+     for (const file of files) {
+       if (signal?.aborted) {
+         throw new Error('Operation aborted');
+       }
+       await processFile(file);
+     }
+   }
+   
+   // Usage with context
+   async execute(params, context): Promise<ToolResult> {
+     if (context.signal?.aborted) {
+       return { success: false, error: 'Operation aborted' };
+     }
+     // ... perform operation
+   }
+   ```
+
+10. **Dynamic Tool Registration**: Use dynamic tool registry for runtime tool management
+    ```typescript
+    // Register a dynamic tool at runtime
+    import { registerDynamicTool, unregisterDynamicTool } from './tool/index.js';
+    
+    const customTool = defineTool({
+      name: 'custom-tool',
+      description: 'A dynamically registered tool',
+      parameters: z.object({ input: z.string() }),
+      execute: async (params) => ({ success: true, data: params.input })
+    });
+    
+    registerDynamicTool(customTool);
+    
+    // Later, remove the tool
+    unregisterDynamicTool('custom-tool');
+    ```
+
 ### File Organization
 
 ```
@@ -369,6 +408,9 @@ npm test -- tests/commands-image.test.tsx
 
 # Run tests matching a pattern
 npm test -- --grep "line endings"
+
+# Run recall tool tests
+npm test -- tests/tool/tools/recall.test.ts
 ```
 
 ### Testing TUI Commands
@@ -423,6 +465,75 @@ Key principles for TUI testing:
 3. Capture hook return values through a component
 4. Clear mocks between tests with vi.clearAllMocks()
 5. Test both command dispatch and context interactions
+
+### Testing Dynamic Tool Registration
+
+Dynamic tools require special testing considerations:
+
+```typescript
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { 
+  defineTool, 
+  registerDynamicTool, 
+  unregisterDynamicTool,
+  getTool 
+} from '../src/tool/index.js';
+import { z } from 'zod';
+
+describe('dynamic tool registration', () => {
+  const toolName = 'test-dynamic-tool';
+
+  afterEach(() => {
+    // Clean up registered tools
+    unregisterDynamicTool(toolName);
+  });
+
+  it('should register and retrieve dynamic tool', () => {
+    const tool = defineTool({
+      name: toolName,
+      description: 'Test tool',
+      parameters: z.object({ input: z.string() }),
+      execute: async (params) => ({ success: true, data: params.input })
+    });
+
+    registerDynamicTool(tool);
+    
+    const retrieved = getTool(toolName);
+    expect(retrieved).toBeDefined();
+    expect(retrieved?.name).toBe(toolName);
+  });
+
+  it('should prevent duplicate tool registration', () => {
+    const tool = defineTool({
+      name: toolName,
+      description: 'Test tool',
+      parameters: z.object({}),
+      execute: async () => ({ success: true })
+    });
+
+    registerDynamicTool(tool);
+    
+    expect(() => registerDynamicTool(tool)).toThrow(
+      `Tool with name '${toolName}' is already registered`
+    );
+  });
+
+  it('should unregister dynamic tool', () => {
+    const tool = defineTool({
+      name: toolName,
+      description: 'Test tool',
+      parameters: z.object({}),
+      execute: async () => ({ success: true })
+    });
+
+    registerDynamicTool(tool);
+    const removed = unregisterDynamicTool(toolName);
+    
+    expect(removed).toBe(true);
+    expect(getTool(toolName)).toBeUndefined();
+  });
+});
+```
 
 ## Pull Request Process
 

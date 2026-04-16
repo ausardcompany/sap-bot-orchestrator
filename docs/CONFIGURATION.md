@@ -617,6 +617,53 @@ interface Session {
 }
 ```
 
+### Cross-Session Context Recall
+
+The recall tool enables searching through past conversation sessions:
+
+```bash
+# In interactive mode
+/recall "TypeScript async patterns"
+
+# Via agent mode
+alexi agent -m "recall previous discussions about authentication"
+```
+
+**Recall Tool Configuration**:
+- Default session limit: 10 sessions
+- Maximum results returned: 20 matches
+- Relevance scoring based on query density
+- Current session excluded by default
+
+**Example Recall Usage**:
+
+```typescript
+import { recallTool } from './tool/tools/recall.js';
+
+const result = await recallTool.execute({
+  query: 'database migration',
+  sessionLimit: 15,
+  includeCurrentSession: false
+}, context);
+
+// Result structure
+{
+  success: true,
+  data: {
+    results: [
+      {
+        sessionId: 'session-123',
+        messageId: 'msg-5',
+        content: 'We discussed database migration strategies...',
+        relevance: 85.3,
+        timestamp: '2026-04-15T10:30:00Z'
+      }
+    ],
+    totalMatches: 8
+  }
+}
+```
+
 ## Configuration Best Practices
 
 1. **Use Environment Variables for Secrets**: Never commit API keys or credentials to version control

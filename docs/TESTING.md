@@ -229,6 +229,7 @@ All file operation tools have comprehensive test coverage:
 | `edit` | `tests/tool/tools/edit.test.ts` | 15+ cases |
 | `glob` | `tests/tool/tools/glob.test.ts` | 16+ cases |
 | `grep` | `tests/tool/tools/grep.test.ts` | 20+ cases |
+| `recall` | `tests/tool/tools/recall.test.ts` | 5+ cases |
 
 ### TUI Command Test Coverage
 
@@ -268,6 +269,11 @@ Each tool is tested across multiple categories:
    - Detect and preserve CRLF vs LF line endings
    - Normalize parameters to match file's line ending style
    - Ensure replacements maintain original file format
+
+6. **Abort Signal Handling** (Glob/Grep Tools)
+   - Respect AbortSignal for cancellable operations
+   - Clean up resources when aborted
+   - Throw proper error messages on abort
 
 #### Testing Line Ending Preservation
 
@@ -310,6 +316,118 @@ describe('edit tool line endings', () => {
     const updated = await fs.readFile(filePath, 'utf-8');
     expect(updated).not.toContain('\r\n');
     expect(updated).toBe('line1\nmodified\nline3\n');
+  });
+});
+```
+
+#### Testing Abort Signal Support
+
+File operation tools support cancellation via AbortSignal:
+
+```typescript
+describe('abort signal handling', () => {
+  it('should abort glob operation when signal is triggered', async () => {
+    const controller = new AbortController();
+    const context: ToolContext = {
+      workdir: tempDir,
+      signal: controller.signal
+    };
+
+    // Trigger abort before operation completes
+    setTimeout(() => controller.abort(), 10);
+
+    const result = await globTool.execute({
+      pattern: '**/*.ts'
+    }, context);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('aborted');
+  });
+
+  it('should abort grep operation when signal is triggered', async () => {
+    const controller = new AbortController();
+    const context: ToolContext = {
+      workdir: tempDir,
+      signal: controller.signal
+    };
+
+    controller.abort();
+
+    const result = await grepTool.execute({
+      pattern: 'search-term'
+    }, context);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('aborted');
+  });
+});
+```
+
+#### Testing Recall Tool
+
+The recall tool searches through past conversation sessions:
+
+```typescript
+describe('recall tool', () => {
+  let sessionsDir: string;
+
+  beforeEach(async () => {
+    sessionsDir = path.join(tempDir, '.alexi', 'sessions');
+    await fs.mkdir(sessionsDir, { recursive: true });
+    process.env.HOME = tempDir;
+  });
+
+  it('should find matches in session messages', async () => {
+    const sessionData = {
+      metadata: { id: 'session-1', created: Date.now() },
+      messages: [
+        { role: 'user', content: 'Help with TypeScript', timestamp: Date.now() },
+        { role: 'assistant', content: 'I can help with TypeScript', timestamp: Date.now() }
+      ]
+    };
+
+    await fs.writeFile(
+      path.join(sessionsDir, 'session-1.json'),
+      JSON.stringify(sessionData)
+    );
+
+    const result = await recallTool.execute({ query: 'TypeScript' }, context);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.totalMatches).toBeGreaterThan(0);
+    expect(result.data?.results[0].content).toContain('TypeScript');
+  });
+
+  it('should calculate relevance scores', async () => {
+    const sessionData = {
+      metadata: { id: 'session-1', created: Date.now() },
+      messages: [
+        { 
+          role: 'user', 
+          content: 'keyword keyword keyword in this message',
+          timestamp: Date.now() 
+        },
+        { 
+          role: 'user', 
+          content: 'keyword appears once here',
+          timestamp: Date.now() 
+        }
+      ]
+    };
+
+    await fs.writeFile(
+      path.join(sessionsDir, 'session-1.json'),
+      JSON.stringify(sessionData)
+    );
+
+    const result = await recallTool.execute({ query: 'keyword' }, context);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.results.length).toBe(2);
+    // First result should have higher relevance
+    expect(result.data?.results[0].relevance).toBeGreaterThan(
+      result.data?.results[1].relevance
+    );
   });
 });
 ```
