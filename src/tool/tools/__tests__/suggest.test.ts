@@ -53,9 +53,7 @@ describe('Suggest Tool', () => {
 
       expect(result.success).toBe(true);
       expect(result.data?.type).toBe('suggestion');
-      expect(result.data?.suggestion).toBe(
-        'This function could be simplified using array methods'
-      );
+      expect(result.data?.suggestion).toBe('This function could be simplified using array methods');
       expect(result.data?.file).toBe('src/utils/helpers.ts');
       expect(result.data?.line).toBe(42);
     });
