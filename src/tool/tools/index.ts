@@ -17,7 +17,7 @@ import { questionTool } from './question.js';
 import { suggestTool } from './suggest.js';
 import { todowriteTool } from './todowrite.js';
 import { deleteTool } from './delete.js';
-import { multieditTool } from './multiedit.js';
+
 import { lsTool } from './ls.js';
 import { websearchTool } from './websearch.js';
 import { skillTool } from './skill.js';
@@ -46,7 +46,6 @@ export const builtInTools = [
   suggestTool,
   todowriteTool,
   deleteTool,
-  multieditTool,
   lsTool,
   skillTool,
   definitionsTool,
@@ -87,7 +86,6 @@ export {
   suggestTool,
   todowriteTool,
   deleteTool,
-  multieditTool,
   lsTool,
   skillTool,
   definitionsTool,

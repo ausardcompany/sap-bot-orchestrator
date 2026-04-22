@@ -53,7 +53,6 @@ export const OUR_FEATURES = {
     'read',
     'write',
     'edit',
-    'multiedit',
     'glob',
     'grep',
     'ls',

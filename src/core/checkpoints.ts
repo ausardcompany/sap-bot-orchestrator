@@ -13,7 +13,7 @@ export interface FileCheckpoint {
   originalContent: string; // Content before change
   newContent: string; // Content after change
   timestamp: number; // Unix timestamp
-  toolName: string; // Which tool made the change (edit, write, multiedit)
+  toolName: string; // Which tool made the change (edit, write)
   sessionId?: string; // Optional session association
 }
 

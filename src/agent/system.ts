@@ -16,6 +16,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import { isLing } from '../providers/model-match.js';
 
 // ---------------------------------------------------------------------------
 // Prompt file loading
@@ -42,6 +43,7 @@ const MODEL_PROMPTS: Record<string, string> = {
   anthropic: readPromptFile('anthropic.txt'),
   openai: readPromptFile('openai.txt'),
   gemini: readPromptFile('gemini.txt'),
+  ling: readPromptFile('ling.txt'),
   default: readPromptFile('default.txt'),
 };
 
@@ -65,6 +67,7 @@ const AGENT_PROMPTS: Record<string, string> = {
  *   - `anthropic--claude-*`   → 'anthropic'
  *   - `gpt-*`                 → 'openai'
  *   - `gemini-*`              → 'gemini'
+ *   - `ling*` or `*/ling*`    → 'ling'
  *   - Everything else         → 'default'
  */
 export function getModelPromptKey(modelId: string): string {
@@ -78,6 +81,9 @@ export function getModelPromptKey(modelId: string): string {
   }
   if (id.startsWith('gemini-')) {
     return 'gemini';
+  }
+  if (isLing(id)) {
+    return 'ling';
   }
   return 'default';
 }

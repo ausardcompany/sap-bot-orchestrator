@@ -12,7 +12,12 @@ const BashParamsSchema = z.object({
   command: z.string().describe('The command to execute'),
   workdir: z.string().optional().describe('Working directory for command execution'),
   timeout: z.number().optional().describe('Timeout in milliseconds (default: 120000)'),
-  description: z.string().optional().describe('Short description of what command does'),
+  description: z
+    .string()
+    .optional()
+    .describe(
+      'Recommended: a clear, concise description of what this command does in 5-10 words. Examples:\nInput: ls\nOutput: Lists files in current directory\n\nInput: git status\nOutput: Shows working tree status\n\nInput: npm install\nOutput: Installs package dependencies\n\nInput: mkdir foo\nOutput: Creates directory \'foo\''
+    ),
 });
 
 interface BashResult {

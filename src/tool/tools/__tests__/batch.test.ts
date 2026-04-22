@@ -426,7 +426,6 @@ describe('batch tool', () => {
       expect(CRITICAL_TOOLS.has('bash')).toBe(true);
       expect(CRITICAL_TOOLS.has('write')).toBe(true);
       expect(CRITICAL_TOOLS.has('edit')).toBe(true);
-      expect(CRITICAL_TOOLS.has('multiedit')).toBe(true);
       expect(CRITICAL_TOOLS.has('delete')).toBe(true);
       expect(CRITICAL_TOOLS.has('read')).toBe(false);
       expect(CRITICAL_TOOLS.has('glob')).toBe(false);

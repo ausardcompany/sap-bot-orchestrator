@@ -251,7 +251,7 @@ describe('CheckpointManager', () => {
 
       manager.createCheckpoint(file1, 'orig1', 'new1', 'edit');
       manager.createCheckpoint(file2, 'orig2', 'new2', 'write');
-      manager.createCheckpoint(file1, 'new1', 'newer1', 'multiedit');
+      manager.createCheckpoint(file1, 'new1', 'newer1', 'edit');
 
       const history = manager.getHistory();
 
@@ -264,7 +264,7 @@ describe('CheckpointManager', () => {
 
       manager.createCheckpoint(file1, 'orig1', 'new1', 'edit');
       manager.createCheckpoint(file2, 'orig2', 'new2', 'write');
-      manager.createCheckpoint(file1, 'new1', 'newer1', 'multiedit');
+      manager.createCheckpoint(file1, 'new1', 'newer1', 'edit');
 
       const history = manager.getHistory(file1);
 
