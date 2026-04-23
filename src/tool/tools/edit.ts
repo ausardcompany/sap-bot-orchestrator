@@ -6,6 +6,7 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { defineTool, type ToolResult } from '../index.js';
+import * as Bom from '../../util/bom.js';
 
 const EditParamsSchema = z.object({
   filePath: z
@@ -61,7 +62,8 @@ Usage:
 
     try {
       // Read existing file
-      const content = await fs.readFile(filePath, 'utf-8');
+      const rawContent = await fs.readFile(filePath, 'utf-8');
+      const { text: content, bom } = Bom.split(rawContent);
 
       // Detect and preserve line endings
       const lineEnding = content.includes('\r\n') ? '\r\n' : '\n';
@@ -114,7 +116,8 @@ Usage:
       }
 
       // Write the file
-      await fs.writeFile(filePath, newContent, 'utf-8');
+      const finalContent = Bom.restore(newContent, bom);
+      await fs.writeFile(filePath, finalContent, 'utf-8');
       const bytesChanged = Math.abs(
         Buffer.byteLength(newContent, 'utf-8') - Buffer.byteLength(content, 'utf-8')
       );

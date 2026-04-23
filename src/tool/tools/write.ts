@@ -6,6 +6,7 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { defineTool, type ToolResult } from '../index.js';
+import * as Bom from '../../util/bom.js';
 
 const WriteParamsSchema = z.object({
   filePath: z.string().describe('Absolute path to the file to write'),
@@ -46,11 +47,14 @@ Usage:
       : path.join(context.workdir, params.filePath);
 
     try {
-      // Check if file exists
+      // Check if file exists and preserve BOM if present
       let exists = false;
+      let bom = false;
       try {
-        await fs.access(filePath);
+        const existingContent = await fs.readFile(filePath, 'utf-8');
         exists = true;
+        const bomResult = Bom.split(existingContent);
+        bom = bomResult.bom;
       } catch {
         // File doesn't exist
       }
@@ -59,8 +63,9 @@ Usage:
       const dir = path.dirname(filePath);
       await fs.mkdir(dir, { recursive: true });
 
-      // Write the file
-      await fs.writeFile(filePath, params.content, 'utf-8');
+      // Write the file with BOM preservation
+      const finalContent = Bom.restore(params.content, bom);
+      await fs.writeFile(filePath, finalContent, 'utf-8');
       const bytesWritten = Buffer.byteLength(params.content, 'utf-8');
 
       const toolResult = {

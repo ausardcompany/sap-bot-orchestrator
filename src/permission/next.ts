@@ -93,8 +93,18 @@ function expand(pattern: string): string {
  */
 export const PermissionNext = {
   fromConfig(config: PermissionConfig): Ruleset {
+    // Sort top-level keys so wildcard permissions (`*`, `mcp_*`) come before
+    // specific ones. Combined with `findLast` in evaluate(), this gives the
+    // intuitive semantic "specific tool rules override the `*` fallback"
+    // regardless of the user's JSON key order.
+    const entries = Object.entries(config).sort(([a], [b]) => {
+      const aWild = a.includes('*');
+      const bWild = b.includes('*');
+      return aWild === bWild ? 0 : aWild ? -1 : 1;
+    });
+
     const ruleset: Ruleset = [];
-    for (const [key, value] of Object.entries(config)) {
+    for (const [key, value] of entries) {
       if (typeof value === 'string') {
         ruleset.push({
           permission: key,
