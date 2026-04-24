@@ -6,6 +6,7 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { defineTool, truncateOutput, MAX_LINES, type ToolResult } from '../index.js';
+import { detectEncoding, decodeWithEncoding, type EncodingResult } from '../encoded-io.js';
 
 const ReadParamsSchema = z.object({
   filePath: z.string().describe('Absolute path to the file or directory to read'),
@@ -20,6 +21,7 @@ interface ReadFileResult {
   totalLines: number;
   shownLines: number;
   offset: number;
+  encoding?: EncodingResult;
 }
 
 interface ReadDirResult {
@@ -75,7 +77,35 @@ Usage:
       }
 
       // Read file
-      const content = await fs.readFile(filePath, 'utf-8');
+      const buffer = await fs.readFile(filePath);
+      const encoding = detectEncoding(buffer);
+
+      // kilocode_change: improved binary detection for non-Latin files
+      // Only treat UTF-16 BOM files as binary (not UTF-8 or ASCII)
+      if (buffer.length >= 2) {
+        if (
+          (buffer[0] === 0xff && buffer[1] === 0xfe) ||
+          (buffer[0] === 0xfe && buffer[1] === 0xff)
+        ) {
+          return {
+            success: false,
+            error: `Binary file detected (UTF-16): ${filePath}`,
+          };
+        }
+      }
+
+      // Skip BOM bytes when decoding
+      let contentBuffer = buffer;
+      if (encoding.hasBOM) {
+        const bomLength = encoding.encoding.includes('32')
+          ? 4
+          : encoding.encoding.includes('16')
+            ? 2
+            : 3;
+        contentBuffer = buffer.slice(bomLength);
+      }
+
+      const content = decodeWithEncoding(contentBuffer, encoding.encoding);
       const lines = content.split('\n');
       const totalLines = lines.length;
 
@@ -102,6 +132,7 @@ Usage:
           totalLines,
           shownLines: selectedLines.length,
           offset,
+          encoding,
         },
         truncated: wasTruncated,
         hint: wasTruncated

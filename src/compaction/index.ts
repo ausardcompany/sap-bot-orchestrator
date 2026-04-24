@@ -20,6 +20,12 @@ export interface CompactionCheckOptions {
   warningThreshold?: number; // Trigger at this % of max (default: 0.8)
 }
 
+export interface CompactionState {
+  attemptsThisTurn: number;
+  lastCompactionTime: number;
+  totalCompactions: number;
+}
+
 export interface CompactionOptions {
   strategy: CompactionStrategy;
   preserveRecent?: number; // Number of recent messages to always keep
@@ -49,6 +55,8 @@ export type SummarizeFn = (prompt: string) => Promise<string>;
 
 // ============ Constants ============
 
+// kilocode_change: cap per-turn compaction attempts to stop infinite busy loop
+const MAX_COMPACTION_ATTEMPTS_PER_TURN = 3;
 const DEFAULT_MAX_TOKENS = 100000;
 const DEFAULT_WARNING_THRESHOLD = 0.8;
 const DEFAULT_PRESERVE_RECENT = 4;
@@ -672,3 +680,61 @@ export async function checkAndCompact(
 
   return { messages: compactedMessages, wasCompacted: true };
 }
+
+// ============ Compaction State Management ============
+
+/**
+ * Check if compaction should be attempted based on state
+ */
+export function shouldAttemptCompaction(
+  state: CompactionState,
+  contextLength: number,
+  maxContextLength: number,
+): boolean {
+  // Don't compact if we've hit the per-turn limit
+  if (state.attemptsThisTurn >= MAX_COMPACTION_ATTEMPTS_PER_TURN) {
+    console.warn(
+      `Compaction attempt limit reached (${MAX_COMPACTION_ATTEMPTS_PER_TURN}), ` +
+        `skipping further compaction this turn`,
+    );
+    return false;
+  }
+
+  // Only compact if we're over the threshold
+  const threshold = maxContextLength * 0.9;
+  return contextLength > threshold;
+}
+
+/**
+ * Increment compaction attempt counter
+ */
+export function incrementCompactionAttempt(state: CompactionState): CompactionState {
+  return {
+    ...state,
+    attemptsThisTurn: state.attemptsThisTurn + 1,
+    lastCompactionTime: Date.now(),
+    totalCompactions: state.totalCompactions + 1,
+  };
+}
+
+/**
+ * Reset the per-turn compaction counter
+ */
+export function resetTurnCompactionCount(state: CompactionState): CompactionState {
+  return {
+    ...state,
+    attemptsThisTurn: 0,
+  };
+}
+
+/**
+ * Create initial compaction state
+ */
+export function createCompactionState(): CompactionState {
+  return {
+    attemptsThisTurn: 0,
+    lastCompactionTime: 0,
+    totalCompactions: 0,
+  };
+}
+

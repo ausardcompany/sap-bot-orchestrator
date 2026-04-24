@@ -6,6 +6,7 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { defineTool, type ToolResult } from '../index.js';
+import { generateFileDiff, countChangedLines } from '../../utils/diff.js';
 
 const EditParamsSchema = z.object({
   filePath: z
@@ -29,6 +30,8 @@ interface EditResult {
   bytesChanged: number;
   startLine?: number;
   endLine?: number;
+  fileDiff?: string;
+  linesChanged?: number;
 }
 
 export const editTool = defineTool<typeof EditParamsSchema, EditResult>({
@@ -51,6 +54,45 @@ Usage:
         return params.filePath;
       }
       return path.join(context?.workdir || process.cwd(), params.filePath);
+    },
+    // kilocode_change: include filediff metadata in edit tool permission ask
+    getMetadata: async (params, context) => {
+      try {
+        const filePath = path.isAbsolute(params.filePath)
+          ? params.filePath
+          : path.join(context?.workdir || process.cwd(), params.filePath);
+
+        const content = await fs.readFile(filePath, 'utf-8');
+        const lineEnding = content.includes('\r\n') ? '\r\n' : '\n';
+        const normalizeLineEndings = (text: string): string => text.replaceAll('\r\n', '\n');
+        const convertToLineEnding = (text: string, ending: '\n' | '\r\n'): string => {
+          if (ending === '\n') return text;
+          return text.replaceAll('\n', '\r\n');
+        };
+
+        const oldString = convertToLineEnding(
+          normalizeLineEndings(params.oldString),
+          lineEnding,
+        );
+        const newString = convertToLineEnding(
+          normalizeLineEndings(params.newString),
+          lineEnding,
+        );
+
+        const newContent = params.replaceAll
+          ? content.split(oldString).join(newString)
+          : content.replace(oldString, newString);
+
+        const fileDiff = generateFileDiff(content, newContent, filePath);
+        const linesChanged = countChangedLines(fileDiff);
+
+        return {
+          fileDiff,
+          linesChanged,
+        };
+      } catch {
+        return {};
+      }
     },
   },
 
@@ -136,6 +178,10 @@ Usage:
         }
       }
 
+      // Generate diff for result
+      const fileDiff = generateFileDiff(content, newContent, filePath);
+      const linesChanged = countChangedLines(fileDiff);
+
       const toolResult = {
         success: true,
         data: {
@@ -144,6 +190,8 @@ Usage:
           bytesChanged,
           startLine,
           endLine,
+          fileDiff,
+          linesChanged,
         },
       };
 

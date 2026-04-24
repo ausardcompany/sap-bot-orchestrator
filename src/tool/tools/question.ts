@@ -29,14 +29,44 @@ interface QuestionResult {
   }>;
 }
 
-// Store for pending questions (to be answered by UI)
-const pendingQuestions = new Map<
-  string,
-  {
-    questions: z.infer<typeof QuestionParamsSchema>['questions'];
-    resolve: (answers: QuestionResult['answers']) => void;
+export interface QuestionState {
+  id: string;
+  questions: z.infer<typeof QuestionParamsSchema>['questions'];
+  answered: boolean;
+  dismissed: boolean;
+  dismissedAt?: number;
+  resolve: (answers: QuestionResult['answers']) => void;
+}
+
+// kilocode_change: add question dismissal helpers
+export function dismissQuestion(state: QuestionState): QuestionState {
+  return {
+    ...state,
+    dismissed: true,
+    dismissedAt: Date.now(),
+  };
+}
+
+export function dismissAllQuestions(
+  questions: Map<string, QuestionState>,
+): Map<string, QuestionState> {
+  const result = new Map<string, QuestionState>();
+  for (const [id, question] of questions) {
+    if (!question.answered && !question.dismissed) {
+      result.set(id, dismissQuestion(question));
+    } else {
+      result.set(id, question);
+    }
   }
->();
+  return result;
+}
+
+export function isQuestionBlocked(state: QuestionState): boolean {
+  return state.dismissed && !state.answered;
+}
+
+// Store for pending questions (to be answered by UI)
+const pendingQuestions = new Map<string, QuestionState>();
 
 export const questionTool = defineTool<typeof QuestionParamsSchema, QuestionResult>({
   name: 'question',
@@ -65,9 +95,16 @@ Usage:
     return new Promise((resolve) => {
       // Store the pending question for the UI to answer
       pendingQuestions.set(questionId, {
+        id: questionId,
         questions: params.questions,
+        answered: false,
+        dismissed: false,
         resolve: (answers) => {
-          pendingQuestions.delete(questionId);
+          const state = pendingQuestions.get(questionId);
+          if (state) {
+            state.answered = true;
+            pendingQuestions.delete(questionId);
+          }
           resolve({
             success: true,
             data: { answers },
@@ -106,13 +143,7 @@ Usage:
 });
 
 // Export for UI integration
-export function getPendingQuestions(): Map<
-  string,
-  {
-    questions: z.infer<typeof QuestionParamsSchema>['questions'];
-    resolve: (answers: QuestionResult['answers']) => void;
-  }
-> {
+export function getPendingQuestions(): Map<string, QuestionState> {
   return pendingQuestions;
 }
 

@@ -6,10 +6,20 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { defineTool, type ToolResult } from '../index.js';
+import { encodeWithEncoding, type EncodingResult } from '../encoded-io.js';
 
 const WriteParamsSchema = z.object({
   filePath: z.string().describe('Absolute path to the file to write'),
   content: z.string().describe('Content to write to the file'),
+  encoding: z
+    .object({
+      encoding: z.string(),
+      confidence: z.number(),
+      content: z.string(),
+      hasBOM: z.boolean(),
+    })
+    .optional()
+    .describe('Optional encoding metadata to preserve original file encoding'),
 });
 
 interface WriteResult {
@@ -60,7 +70,21 @@ Usage:
       await fs.mkdir(dir, { recursive: true });
 
       // Write the file
-      await fs.writeFile(filePath, params.content, 'utf-8');
+      // kilocode_change: preserve original file encoding when writing
+      if (params.encoding && params.encoding.encoding !== 'UTF-8') {
+        const buffer = encodeWithEncoding(
+          params.content,
+          params.encoding.encoding,
+          params.encoding.hasBOM,
+        );
+        await fs.writeFile(filePath, buffer);
+      } else if (params.encoding?.hasBOM && params.encoding.encoding === 'UTF-8') {
+        // kilocode_change: preserve UTF-8 BOM through read/write round-trip
+        const buffer = encodeWithEncoding(params.content, 'UTF-8', true);
+        await fs.writeFile(filePath, buffer);
+      } else {
+        await fs.writeFile(filePath, params.content, 'utf-8');
+      }
       const bytesWritten = Buffer.byteLength(params.content, 'utf-8');
 
       const toolResult = {

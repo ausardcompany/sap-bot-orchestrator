@@ -41,6 +41,11 @@ export interface ToolDefinition<TParams extends z.ZodType, TResult> {
     action: PermissionAction;
     // getResource can optionally receive context to resolve relative paths
     getResource: (params: z.infer<TParams>, context?: ToolContext) => string;
+    // Optional metadata function for permission requests (e.g., file diffs)
+    getMetadata?: (
+      params: z.infer<TParams>,
+      context?: ToolContext,
+    ) => Promise<Record<string, unknown>> | Record<string, unknown>;
   };
   // Execution function
   execute: (params: z.infer<TParams>, context: ToolContext) => Promise<ToolResult<TResult>>;
@@ -279,12 +284,25 @@ export function defineTool<TParams extends z.ZodType, TResult>(
       if (definition.permission) {
         // Pass context to getResource so it can resolve relative paths
         const resource = definition.permission.getResource(params, context);
+
+        // Get metadata if available
+        let metadata: Record<string, unknown> | undefined;
+        if (definition.permission.getMetadata) {
+          try {
+            metadata = await definition.permission.getMetadata(params, context);
+          } catch {
+            // Metadata is optional, proceed without it
+            metadata = undefined;
+          }
+        }
+
         const permissionManager = getPermissionManager();
         const result = await permissionManager.check({
           toolName: definition.name,
           action: definition.permission.action,
           resource,
           description: `${definition.name}: ${definition.permission.action} on ${resource}`,
+          ...(metadata && { metadata }),
         });
 
         if (!result.granted) {
