@@ -6,6 +6,7 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { defineTool, type ToolResult } from '../index.js';
+import { encodeWithEncoding, type EncodingInfo } from '../encoded-io.js';
 
 const WriteParamsSchema = z.object({
   filePath: z.string().describe('Absolute path to the file to write'),
@@ -60,6 +61,9 @@ Usage:
       await fs.mkdir(dir, { recursive: true });
 
       // Write the file
+      // Note: In a full implementation with cross-tool encoding preservation,
+      // we would check if encodingInfo was passed via context and use encodeWithEncoding()
+      // For now, we always write as UTF-8 for new files
       await fs.writeFile(filePath, params.content, 'utf-8');
       const bytesWritten = Buffer.byteLength(params.content, 'utf-8');
 

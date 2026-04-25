@@ -6,6 +6,7 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { defineTool, truncateOutput, MAX_LINES, type ToolResult } from '../index.js';
+import { detectEncoding, decodeWithEncoding, type EncodingInfo } from '../encoded-io.js';
 
 const ReadParamsSchema = z.object({
   filePath: z.string().describe('Absolute path to the file or directory to read'),
@@ -20,6 +21,7 @@ interface ReadFileResult {
   totalLines: number;
   shownLines: number;
   offset: number;
+  encodingInfo?: EncodingInfo;
 }
 
 interface ReadDirResult {
@@ -75,7 +77,11 @@ Usage:
       }
 
       // Read file
-      const content = await fs.readFile(filePath, 'utf-8');
+      const buffer = await fs.readFile(filePath);
+      const encodingInfo = detectEncoding(buffer);
+
+      // Decode with detected encoding
+      const content = decodeWithEncoding(buffer, encodingInfo);
       const lines = content.split('\n');
       const totalLines = lines.length;
 
@@ -102,6 +108,7 @@ Usage:
           totalLines,
           shownLines: selectedLines.length,
           offset,
+          encodingInfo,
         },
         truncated: wasTruncated,
         hint: wasTruncated

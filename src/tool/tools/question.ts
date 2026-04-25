@@ -3,6 +3,7 @@
  */
 
 import { z } from 'zod';
+import { EventEmitter } from 'events';
 import { defineTool, type ToolResult } from '../index.js';
 
 const QuestionOptionSchema = z.object({
@@ -27,7 +28,18 @@ interface QuestionResult {
     question: string;
     selected: string[];
   }>;
+  dismissed?: boolean;
+  blockedByNewMessage?: boolean;
 }
+
+export interface QuestionState {
+  id: string;
+  dismissed: boolean;
+  blockedByNewMessage: boolean;
+}
+
+// Global event emitter for question dismissal
+export const questionEvents = new EventEmitter();
 
 // Store for pending questions (to be answered by UI)
 const pendingQuestions = new Map<
@@ -35,8 +47,24 @@ const pendingQuestions = new Map<
   {
     questions: z.infer<typeof QuestionParamsSchema>['questions'];
     resolve: (answers: QuestionResult['answers']) => void;
+    state: QuestionState;
   }
 >();
+
+/**
+ * Dismiss all pending questions when a new user message is queued
+ */
+export function dismissAllPendingQuestions(
+  reason: 'new_message' | 'user_action' = 'user_action'
+): void {
+  for (const [id, pending] of pendingQuestions) {
+    if (!pending.state.dismissed) {
+      pending.state.dismissed = true;
+      pending.state.blockedByNewMessage = reason === 'new_message';
+      questionEvents.emit('dismissed', { id, reason });
+    }
+  }
+}
 
 export const questionTool = defineTool<typeof QuestionParamsSchema, QuestionResult>({
   name: 'question',
@@ -53,6 +81,9 @@ Usage:
   async execute(params, context): Promise<ToolResult<QuestionResult>> {
     const { nanoid } = await import('nanoid');
     const questionId = nanoid();
+
+    // Create question state
+    const state: QuestionState = { id: questionId, dismissed: false, blockedByNewMessage: false };
 
     // In a full implementation, this would:
     // 1. Publish an event to the UI
@@ -73,12 +104,30 @@ Usage:
             data: { answers },
           });
         },
+        state,
       });
+
+      // Listen for dismissal events
+      const dismissalHandler = (event: { id: string; reason: string }) => {
+        if (event.id === questionId && pendingQuestions.has(questionId)) {
+          pendingQuestions.delete(questionId);
+          resolve({
+            success: true,
+            data: {
+              answers: [],
+              dismissed: true,
+              blockedByNewMessage: state.blockedByNewMessage,
+            },
+          });
+        }
+      };
+      questionEvents.once('dismissed', dismissalHandler);
 
       // If no UI responds in 5 minutes, timeout
       setTimeout(
         () => {
           if (pendingQuestions.has(questionId)) {
+            questionEvents.removeListener('dismissed', dismissalHandler);
             pendingQuestions.delete(questionId);
             resolve({
               success: false,
@@ -93,6 +142,7 @@ Usage:
       if (context.signal) {
         context.signal.addEventListener('abort', () => {
           if (pendingQuestions.has(questionId)) {
+            questionEvents.removeListener('dismissed', dismissalHandler);
             pendingQuestions.delete(questionId);
             resolve({
               success: false,
@@ -111,6 +161,7 @@ export function getPendingQuestions(): Map<
   {
     questions: z.infer<typeof QuestionParamsSchema>['questions'];
     resolve: (answers: QuestionResult['answers']) => void;
+    state: QuestionState;
   }
 > {
   return pendingQuestions;

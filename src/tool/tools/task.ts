@@ -108,6 +108,13 @@ Usage:
     // inherit restrictions so they cannot bypass parent agent permissions.
     // See upstream commit for implementation reference.
 
+    // TODO: Respect configured model setting when spawning subagents.
+    // The subagent should use the same model as the parent session unless explicitly overridden.
+    // This requires passing model configuration through the context or session metadata.
+    // Implementation would look like:
+    //   const configuredModel = context.modelOverride ?? context.config?.defaultModel;
+    //   // Pass configuredModel to LLM call for subagent
+
     // For now, return a placeholder since actual execution requires LLM integration
     // In a full implementation, this would call the LLM with the agent's system prompt
     const response = `[Task ${taskId} queued for agent: ${agent.name}]\n\nPrompt: ${params.description}\n\nThis task will be executed by the ${agent.name} agent. In a full implementation, this would make an LLM call with the agent's system prompt.`;

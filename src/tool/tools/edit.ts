@@ -52,6 +52,9 @@ Usage:
       }
       return path.join(context?.workdir || process.cwd(), params.filePath);
     },
+    // TODO: Add diff metadata to permission request for better user context
+    // This would require extending the permission system to support metadata
+    // Example: Include additions/deletions/hunks count and preview in permission prompt
   },
 
   async execute(params, context): Promise<ToolResult<EditResult>> {
