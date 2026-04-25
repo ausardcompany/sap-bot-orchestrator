@@ -257,6 +257,25 @@ graph LR
    export type ToolID = z.infer<typeof ToolID>;
    ```
 
+9. **File Encoding Preservation**: Use encoding utilities for file I/O
+   ```typescript
+   // Good - Detect and preserve encoding
+   import { detectEncoding, decodeWithEncoding, encodeWithEncoding } from '../tool/encoded-io.js';
+   
+   const buffer = await fs.readFile(filePath);
+   const encodingInfo = detectEncoding(buffer);
+   const content = decodeWithEncoding(buffer, encodingInfo);
+   
+   // Process content...
+   
+   const encoded = encodeWithEncoding(modifiedContent, encodingInfo);
+   await fs.writeFile(filePath, encoded);
+   
+   // Bad - Assumes UTF-8, may corrupt files
+   const content = await fs.readFile(filePath, 'utf-8');
+   await fs.writeFile(filePath, modifiedContent, 'utf-8');
+   ```
+
 ### File Organization
 
 ```
@@ -269,12 +288,19 @@ src/
 │   ├── router.ts
 │   └── agenticChat.ts
 ├── providers/        # LLM provider implementations
-│   ├── openai/
-│   ├── bedrock/
-│   └── anthropic/
+│   ├── sapOrchestration.ts  # SAP AI Core provider
+│   ├── model-match.ts       # Model matching utilities
+│   └── index.ts
 ├── tool/             # Tool system
 │   ├── index.ts      # Tool framework
+│   ├── encoded-io.ts # Encoding detection utilities
 │   └── tools/        # Individual tool implementations
+│       ├── read.ts   # File reading with encoding detection
+│       ├── write.ts  # File writing with encoding preservation
+│       ├── edit.ts   # File editing with line ending preservation
+│       ├── suggest.ts # Code review suggestions
+│       ├── question.ts # Interactive user prompts
+│       └── bash.ts   # Shell command execution
 ├── permission/       # Permission system
 │   └── index.ts
 ├── session/          # Session management

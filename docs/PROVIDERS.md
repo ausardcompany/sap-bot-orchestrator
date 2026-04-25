@@ -404,6 +404,85 @@ const running = deployments.filter(d => d.status === 'RUNNING');
 console.log(`Found ${running.length} running deployments`);
 ```
 
+## Model Matching Utilities
+
+Alexi includes utilities for identifying specific model types based on their IDs. These utilities help with model-specific handling and feature detection.
+
+### Ling Model Detection
+
+The `isLingModel()` function identifies Ling models while filtering out false positives:
+
+```typescript
+// src/providers/model-match.ts
+import { isLingModel } from './providers/model-match.js';
+
+// True for Ling models
+isLingModel('ling-v1');           // true
+isLingModel('provider/ling-pro'); // true
+isLingModel('ling_model');        // true
+
+// False for false positives
+isLingModel('kling-v1');          // false
+isLingModel('bling-model');       // false
+isLingModel('spelling-check');    // false
+```
+
+### Implementation Details
+
+```typescript
+export function isLingModel(modelId: string): boolean {
+  const lower = modelId.toLowerCase();
+
+  // Must contain "ling"
+  if (!lower.includes('ling')) {
+    return false;
+  }
+
+  // Exclude known false positives
+  const exclusions = ['kling', 'bling', 'spelling', 'sibling', 'tingling', 'mingling'];
+  for (const exclusion of exclusions) {
+    if (lower.includes(exclusion)) {
+      return false;
+    }
+  }
+
+  // Check if "ling" appears as a standalone prefix or model name component
+  return (
+    lower.startsWith('ling') ||
+    lower.includes('/ling') ||
+    lower.includes('-ling') ||
+    lower.includes('_ling')
+  );
+}
+```
+
+### Use Cases
+
+Model matching utilities are useful for:
+
+1. **Feature Detection**: Enable model-specific features or workarounds
+2. **Routing Logic**: Route prompts to specific model families
+3. **Cost Optimization**: Apply different pricing calculations per model type
+4. **Capability Checks**: Verify model supports required features
+
+### Adding New Model Matchers
+
+To add detection for new model families:
+
+```typescript
+// src/providers/model-match.ts
+
+export function isGeminiModel(modelId: string): boolean {
+  const lower = modelId.toLowerCase();
+  return lower.includes('gemini') || lower.includes('google/gemini');
+}
+
+export function isClaudeModel(modelId: string): boolean {
+  const lower = modelId.toLowerCase();
+  return lower.includes('claude') || lower.includes('anthropic/claude');
+}
+```
+
 ## Provider Resolution
 
 The provider resolution flow determines which provider to use for a given model:

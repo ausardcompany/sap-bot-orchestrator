@@ -7,9 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.12] - 2026-04-25
+
+### Added
+
+- New suggest tool for presenting code review suggestions to users
+  - Non-blocking informational suggestions
+  - Optional file path and line number references
+  - Integration with permission system for display
+- New question tool for interactive user prompts during execution
+  - Support for multiple choice questions with descriptions
+  - Optional agent mode switching based on user selection
+  - Automatic dismissal when new user messages are queued
+  - 5-minute timeout with abort signal support
+- Encoding-aware file I/O utilities for preserving file encodings
+  - Automatic detection of UTF-8, UTF-16 LE/BE, UTF-32 BOM markers
+  - Encoding preservation during read and write operations
+  - Prevents file corruption when handling non-UTF-8 files
+- Model matching utilities for identifying specific model types
+  - Ling model detection with false positive filtering
+  - Excludes common false positives like kling, bling, spelling
+
+### Changed
+
+- Read tool now detects and preserves file encoding information
+  - Returns encodingInfo in result for downstream tools
+  - Supports UTF-8, UTF-16, and UTF-32 with BOM detection
+- Write tool includes encoding preservation infrastructure
+  - Prepared for cross-tool encoding context passing
+  - Currently writes new files as UTF-8 by default
+- Bash tool description parameter now marked as recommended
+  - Enhanced description text for better audit logging guidance
+  - Helps with command intent tracking
+- Edit tool includes TODO comment for diff metadata in permissions
+  - Future enhancement to show diff preview in permission prompts
+- Task tool includes TODO comments for permission inheritance
+  - Planned security enhancement to prevent privilege escalation
+  - Subagents will inherit parent restrictions
+
 ### Fixed
 
-- Resolved ESLint naming conflicts in tool schema definitions by using private schema constants with underscore prefixes
+- Question tool now properly handles dismissal events
+  - Prevents memory leaks from unremoved event listeners
+  - Cleans up pending questions on timeout or abort
 
 ## [0.3.1] - 2026-03-21
 
@@ -228,7 +268,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rule-based configuration system
 - Autonomous self-updating from upstream repositories
 
-[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/ausardcompany/alexi/compare/v0.4.12...HEAD
+[0.4.12]: https://github.com/ausardcompany/alexi/compare/v0.2.6...v0.4.12
 [0.2.6]: https://github.com/ausardcompany/alexi/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/ausardcompany/alexi/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/ausardcompany/alexi/compare/v0.2.3...v0.2.4

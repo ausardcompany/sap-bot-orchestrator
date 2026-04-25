@@ -130,6 +130,38 @@ open coverage/index.html
 
 The tool system has comprehensive unit tests covering file operations, permissions, and error handling.
 
+### Encoding-Aware File I/O
+
+Alexi includes encoding detection and preservation utilities to prevent file corruption:
+
+```typescript
+// src/tool/encoded-io.ts
+import { detectEncoding, decodeWithEncoding, encodeWithEncoding } from '../tool/encoded-io.js';
+
+// Detect encoding from buffer
+const buffer = await fs.readFile(filePath);
+const encodingInfo = detectEncoding(buffer);
+// { encoding: 'UTF-8', confidence: 1, hasBOM: true, bomBytes: Buffer }
+
+// Decode with detected encoding
+const content = decodeWithEncoding(buffer, encodingInfo);
+
+// Encode back with preserved BOM
+const encoded = encodeWithEncoding(content, encodingInfo);
+```
+
+### Supported Encodings
+
+The encoding detection system supports:
+
+- **UTF-8**: With or without BOM (0xEF 0xBB 0xBF)
+- **UTF-16 LE**: With BOM (0xFF 0xFE)
+- **UTF-16 BE**: With BOM (0xFE 0xFF)
+- **UTF-32 LE**: With BOM (0xFF 0xFE 0x00 0x00)
+- **UTF-32 BE**: With BOM (0x00 0x00 0xFE 0xFF)
+
+Files without BOM markers default to UTF-8 with 80% confidence.
+
 ### Tool Test Architecture
 
 ```mermaid
@@ -229,6 +261,7 @@ All file operation tools have comprehensive test coverage:
 | `edit` | `tests/tool/tools/edit.test.ts` | 15+ cases |
 | `glob` | `tests/tool/tools/glob.test.ts` | 16+ cases |
 | `grep` | `tests/tool/tools/grep.test.ts` | 20+ cases |
+| `suggest` | `tests/tool/tools/suggest.test.ts` | 10+ cases |
 
 ### TUI Command Test Coverage
 
@@ -268,6 +301,16 @@ Each tool is tested across multiple categories:
    - Detect and preserve CRLF vs LF line endings
    - Normalize parameters to match file's line ending style
    - Ensure replacements maintain original file format
+
+6. **File Encoding Detection** (Read Tool)
+   - Detect UTF-8, UTF-16 LE/BE, UTF-32 BOM markers
+   - Preserve encoding information in result
+   - Handle files with different encodings gracefully
+
+7. **Suggestion Formatting** (Suggest Tool)
+   - Preserve multiline suggestions
+   - Handle code blocks in suggestions
+   - Support file path and line number context
 
 #### Testing Line Ending Preservation
 
@@ -310,6 +353,97 @@ describe('edit tool line endings', () => {
     const updated = await fs.readFile(filePath, 'utf-8');
     expect(updated).not.toContain('\r\n');
     expect(updated).toBe('line1\nmodified\nline3\n');
+  });
+});
+```
+
+#### Testing File Encoding Detection
+
+The read tool detects and preserves file encodings:
+
+```typescript
+describe('read tool encoding detection', () => {
+  it('should detect UTF-8 with BOM', async () => {
+    // Create file with UTF-8 BOM
+    const bom = Buffer.from([0xef, 0xbb, 0xbf]);
+    const content = Buffer.from('Hello, World!', 'utf-8');
+    await fs.writeFile(filePath, Buffer.concat([bom, content]));
+
+    const result = await readTool.execute({ filePath }, context);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.encodingInfo?.encoding).toBe('UTF-8');
+    expect(result.data?.encodingInfo?.hasBOM).toBe(true);
+  });
+
+  it('should detect UTF-16 LE with BOM', async () => {
+    const bom = Buffer.from([0xff, 0xfe]);
+    const content = Buffer.from('Hello', 'utf16le');
+    await fs.writeFile(filePath, Buffer.concat([bom, content]));
+
+    const result = await readTool.execute({ filePath }, context);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.encodingInfo?.encoding).toBe('UTF-16LE');
+    expect(result.data?.encodingInfo?.hasBOM).toBe(true);
+  });
+
+  it('should default to UTF-8 for files without BOM', async () => {
+    await fs.writeFile(filePath, 'Plain text', 'utf-8');
+
+    const result = await readTool.execute({ filePath }, context);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.encodingInfo?.encoding).toBe('UTF-8');
+    expect(result.data?.encodingInfo?.hasBOM).toBe(false);
+  });
+});
+```
+
+#### Testing Suggest Tool
+
+The suggest tool presents code review suggestions:
+
+```typescript
+describe('suggest tool', () => {
+  it('should create suggestion with text only', async () => {
+    const result = await suggestTool.executeUnsafe(
+      {
+        suggestion: 'Consider using const instead of let for immutable variables',
+      },
+      context
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.data?.type).toBe('suggestion');
+    expect(result.data?.suggestion).toBeDefined();
+  });
+
+  it('should include file context when provided', async () => {
+    const result = await suggestTool.executeUnsafe(
+      {
+        suggestion: 'Add error handling for this API call',
+        file: 'src/api/client.ts',
+        line: 42,
+      },
+      context
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.data?.file).toBe('src/api/client.ts');
+    expect(result.data?.line).toBe(42);
+  });
+
+  it('should preserve multiline suggestions', async () => {
+    const multiline = 'Consider refactoring:\n- Extract validation\n- Add type guards';
+    
+    const result = await suggestTool.executeUnsafe(
+      { suggestion: multiline },
+      context
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.data?.suggestion).toBe(multiline);
   });
 });
 ```
