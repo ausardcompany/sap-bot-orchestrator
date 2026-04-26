@@ -6,6 +6,12 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { defineTool, truncateOutput, MAX_LINES, type ToolResult } from '../index.js';
+import {
+  detectEncoding,
+  decodeWithEncoding,
+  isBinaryFile,
+  type EncodingInfo,
+} from '../encoded-io.js';
 
 const ReadParamsSchema = z.object({
   filePath: z.string().describe('Absolute path to the file or directory to read'),
@@ -20,6 +26,8 @@ interface ReadFileResult {
   totalLines: number;
   shownLines: number;
   offset: number;
+  encoding?: EncodingInfo;
+  isBinary?: boolean;
 }
 
 interface ReadDirResult {
@@ -29,6 +37,18 @@ interface ReadDirResult {
 }
 
 type ReadResult = ReadFileResult | ReadDirResult;
+
+// Store encoding metadata for write operations
+const fileEncodingCache = new Map<string, EncodingInfo>();
+
+export function cacheFileEncoding(filePath: string, encoding: EncodingInfo): void {
+  fileEncodingCache.set(path.resolve(filePath), encoding);
+}
+
+export function getCachedEncoding(filePath: string): EncodingInfo | undefined {
+  return fileEncodingCache.get(path.resolve(filePath));
+}
+
 
 export const readTool = defineTool<typeof ReadParamsSchema, ReadResult>({
   name: 'read',
@@ -75,7 +95,23 @@ Usage:
       }
 
       // Read file
-      const content = await fs.readFile(filePath, 'utf-8');
+      const buffer = await fs.readFile(filePath);
+
+      // Check for binary content first
+      if (isBinaryFile(buffer)) {
+        return {
+          success: false,
+          error: `Cannot read binary file: ${filePath}`,
+        };
+      }
+
+      // Detect and decode with proper encoding
+      const encoding = detectEncoding(buffer);
+      const content = decodeWithEncoding(buffer, encoding);
+
+      // Cache encoding for later write operations
+      cacheFileEncoding(filePath, encoding);
+
       const lines = content.split('\n');
       const totalLines = lines.length;
 
@@ -102,6 +138,7 @@ Usage:
           totalLines,
           shownLines: selectedLines.length,
           offset,
+          encoding,
         },
         truncated: wasTruncated,
         hint: wasTruncated

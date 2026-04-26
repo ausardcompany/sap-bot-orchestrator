@@ -6,6 +6,8 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { defineTool, type ToolResult } from '../index.js';
+import { encodeWithEncoding, type EncodingInfo } from '../encoded-io.js';
+import { getCachedEncoding } from './read.js';
 
 const WriteParamsSchema = z.object({
   filePath: z.string().describe('Absolute path to the file to write'),
@@ -17,6 +19,17 @@ interface WriteResult {
   bytesWritten: number;
   created: boolean;
 }
+
+/**
+ * Prevent double BOM when content already starts with U+FEFF
+ */
+function sanitizeContentForWrite(content: string, encoding: EncodingInfo): string {
+  if (encoding.hasBOM && content.charCodeAt(0) === 0xfeff) {
+    return content.slice(1);
+  }
+  return content;
+}
+
 
 export const writeTool = defineTool<typeof WriteParamsSchema, WriteResult>({
   name: 'write',
@@ -59,9 +72,23 @@ Usage:
       const dir = path.dirname(filePath);
       await fs.mkdir(dir, { recursive: true });
 
+      // Get encoding from cache or use UTF-8 default
+      const encoding: EncodingInfo =
+        getCachedEncoding(filePath) || {
+          encoding: 'utf-8',
+          confidence: 1,
+          hasBOM: false,
+        };
+
+      // Sanitize content to prevent double BOM
+      const sanitizedContent = sanitizeContentForWrite(params.content, encoding);
+
+      // Encode with proper encoding
+      const buffer = encodeWithEncoding(sanitizedContent, encoding);
+
       // Write the file
-      await fs.writeFile(filePath, params.content, 'utf-8');
-      const bytesWritten = Buffer.byteLength(params.content, 'utf-8');
+      await fs.writeFile(filePath, buffer);
+      const bytesWritten = buffer.length;
 
       const toolResult = {
         success: true,

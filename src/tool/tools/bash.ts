@@ -12,7 +12,13 @@ const BashParamsSchema = z.object({
   command: z.string().describe('The command to execute'),
   workdir: z.string().optional().describe('Working directory for command execution'),
   timeout: z.number().optional().describe('Timeout in milliseconds (default: 120000)'),
-  description: z.string().optional().describe('Short description of what command does'),
+  description: z
+    .string()
+    .optional()
+    .describe(
+      'Human-readable description of what this command does. ' +
+        'Recommended for complex commands to aid understanding and approval.'
+    ),
 });
 
 interface BashResult {

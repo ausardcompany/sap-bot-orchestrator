@@ -38,6 +38,40 @@ const pendingQuestions = new Map<
   }
 >();
 
+// Track dismissed questions
+const dismissedQuestions = new Set<string>();
+
+/**
+ * Dismiss a single question by ID
+ */
+export function dismissQuestion(questionId: string): boolean {
+  if (pendingQuestions.has(questionId)) {
+    pendingQuestions.delete(questionId);
+    dismissedQuestions.add(questionId);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Dismiss all pending questions - called when user queues a new message
+ * This prevents blocking questions from stalling the session
+ */
+export function dismissAllQuestions(): void {
+  for (const [questionId] of pendingQuestions) {
+    dismissedQuestions.add(questionId);
+  }
+  pendingQuestions.clear();
+}
+
+/**
+ * Check if a question was dismissed
+ */
+export function isQuestionDismissed(questionId: string): boolean {
+  return dismissedQuestions.has(questionId);
+}
+
+
 export const questionTool = defineTool<typeof QuestionParamsSchema, QuestionResult>({
   name: 'question',
   description: `Ask the user questions during execution to gather preferences or clarify requirements.

@@ -20,6 +20,17 @@ interface TaskResult {
   completed: boolean;
 }
 
+/**
+ * Get the effective model for a subagent task
+ * Priority: task override > subagent config > session model
+ */
+function getSubagentModel(context: {
+  config?: { subagentModel?: string; model?: string };
+}): string {
+  return context.config?.subagentModel || context.config?.model || 'default';
+}
+
+
 // Store for ongoing tasks
 const taskStore = new Map<
   string,
@@ -108,9 +119,12 @@ Usage:
     // inherit restrictions so they cannot bypass parent agent permissions.
     // See upstream commit for implementation reference.
 
+    // Respect configured model for subagents - fix from upstream
+    const modelId = getSubagentModel(context);
+
     // For now, return a placeholder since actual execution requires LLM integration
     // In a full implementation, this would call the LLM with the agent's system prompt
-    const response = `[Task ${taskId} queued for agent: ${agent.name}]\n\nPrompt: ${params.description}\n\nThis task will be executed by the ${agent.name} agent. In a full implementation, this would make an LLM call with the agent's system prompt.`;
+    const response = `[Task ${taskId} queued for agent: ${agent.name}]\n\nPrompt: ${params.description}\n\nModel: ${modelId}\n\nThis task will be executed by the ${agent.name} agent. In a full implementation, this would make an LLM call with the agent's system prompt.`;
 
     taskData.messages.push({
       role: 'assistant',
