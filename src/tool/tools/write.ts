@@ -6,6 +6,8 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { defineTool, type ToolResult } from '../index.js';
+import { encodeWithEncoding, type EncodingInfo } from '../encoded-io.js';
+import { getFileEncoding } from './read.js';
 
 const WriteParamsSchema = z.object({
   filePath: z.string().describe('Absolute path to the file to write'),
@@ -59,9 +61,27 @@ Usage:
       const dir = path.dirname(filePath);
       await fs.mkdir(dir, { recursive: true });
 
+      // Get cached encoding from previous read, default to UTF-8
+      const encoding: EncodingInfo =
+        getFileEncoding(filePath) || {
+          encoding: 'utf-8',
+          confidence: 1,
+          hasBOM: false,
+        };
+
+      // Handle UTF-8 BOM preservation
+      // If content starts with U+FEFF and we already have BOM, don't double it
+      let finalContent = params.content;
+      if (encoding.hasBOM && encoding.encoding === 'utf-8' && params.content.charCodeAt(0) === 0xfeff) {
+        finalContent = params.content.slice(1);
+      }
+
+      // Encode with proper encoding
+      const buffer = encodeWithEncoding(finalContent, encoding);
+
       // Write the file
-      await fs.writeFile(filePath, params.content, 'utf-8');
-      const bytesWritten = Buffer.byteLength(params.content, 'utf-8');
+      await fs.writeFile(filePath, buffer);
+      const bytesWritten = buffer.length;
 
       const toolResult = {
         success: true,

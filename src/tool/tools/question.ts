@@ -4,6 +4,13 @@
 
 import { z } from 'zod';
 import { defineTool, type ToolResult } from '../index.js';
+import {
+  dismissQuestion,
+  isQuestionDismissed,
+  setCustomAnswer,
+  getCustomAnswer,
+  clearQuestionState,
+} from '../../bus/question-state.js';
 
 const QuestionOptionSchema = z.object({
   label: z.string().describe('Display text (1-5 words)'),
@@ -54,6 +61,14 @@ Usage:
     const { nanoid } = await import('nanoid');
     const questionId = nanoid();
 
+    // Check if question was previously dismissed
+    if (isQuestionDismissed(questionId)) {
+      return {
+        success: false,
+        error: 'Question was dismissed by user',
+      };
+    }
+
     // In a full implementation, this would:
     // 1. Publish an event to the UI
     // 2. Wait for user response
@@ -68,10 +83,18 @@ Usage:
         questions: params.questions,
         resolve: (answers) => {
           pendingQuestions.delete(questionId);
-          resolve({
-            success: true,
-            data: { answers },
-          });
+          if (answers.length === 0) {
+            // Empty answers indicate dismissal
+            resolve({
+              success: false,
+              error: 'Question dismissed by user',
+            });
+          } else {
+            resolve({
+              success: true,
+              data: { answers },
+            });
+          }
         },
       });
 
@@ -80,6 +103,7 @@ Usage:
         () => {
           if (pendingQuestions.has(questionId)) {
             pendingQuestions.delete(questionId);
+            clearQuestionState(questionId);
             resolve({
               success: false,
               error: 'Question timeout - no response received',
@@ -94,6 +118,7 @@ Usage:
         context.signal.addEventListener('abort', () => {
           if (pendingQuestions.has(questionId)) {
             pendingQuestions.delete(questionId);
+            clearQuestionState(questionId);
             resolve({
               success: false,
               error: 'Operation aborted',
@@ -116,10 +141,32 @@ export function getPendingQuestions(): Map<
   return pendingQuestions;
 }
 
-export function answerQuestion(questionId: string, answers: QuestionResult['answers']): boolean {
+export function answerQuestion(
+  questionId: string,
+  answers: QuestionResult['answers'],
+  dismissed?: boolean
+): boolean {
   const pending = pendingQuestions.get(questionId);
   if (pending) {
-    pending.resolve(answers);
+    if (dismissed) {
+      dismissQuestion(questionId);
+      clearQuestionState(questionId);
+      pending.resolve([]);
+    } else {
+      // Check for custom answers and prevent duplicates
+      const processedAnswers = answers.map((answer) => {
+        const customAnswer = getCustomAnswer(questionId);
+        if (customAnswer && !answer.selected.includes(customAnswer)) {
+          return {
+            ...answer,
+            selected: [...answer.selected, customAnswer],
+          };
+        }
+        return answer;
+      });
+      clearQuestionState(questionId);
+      pending.resolve(processedAnswers);
+    }
     return true;
   }
   return false;

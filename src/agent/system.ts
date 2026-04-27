@@ -42,6 +42,7 @@ const MODEL_PROMPTS: Record<string, string> = {
   anthropic: readPromptFile('anthropic.txt'),
   openai: readPromptFile('openai.txt'),
   gemini: readPromptFile('gemini.txt'),
+  ling: readPromptFile('ling.txt'),
   default: readPromptFile('default.txt'),
 };
 
@@ -65,6 +66,7 @@ const AGENT_PROMPTS: Record<string, string> = {
  *   - `anthropic--claude-*`   → 'anthropic'
  *   - `gpt-*`                 → 'openai'
  *   - `gemini-*`              → 'gemini'
+ *   - `ling-*` or contains 'ling' → 'ling'
  *   - Everything else         → 'default'
  */
 export function getModelPromptKey(modelId: string): string {
@@ -78,6 +80,14 @@ export function getModelPromptKey(modelId: string): string {
   }
   if (id.startsWith('gemini-')) {
     return 'gemini';
+  }
+  // Check for Ling models (avoiding false positives like kling, bling)
+  if (id.startsWith('ling-') || id.startsWith('ling_')) {
+    return 'ling';
+  }
+  // Check for ling after separator
+  if (id.match(/[\/:]ling[-_]/)) {
+    return 'ling';
   }
   return 'default';
 }
