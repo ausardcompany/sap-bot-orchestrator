@@ -62,17 +62,20 @@ Usage:
       await fs.mkdir(dir, { recursive: true });
 
       // Get cached encoding from previous read, default to UTF-8
-      const encoding: EncodingInfo =
-        getFileEncoding(filePath) || {
-          encoding: 'utf-8',
-          confidence: 1,
-          hasBOM: false,
-        };
+      const encoding: EncodingInfo = getFileEncoding(filePath) || {
+        encoding: 'utf-8',
+        confidence: 1,
+        hasBOM: false,
+      };
 
       // Handle UTF-8 BOM preservation
       // If content starts with U+FEFF and we already have BOM, don't double it
       let finalContent = params.content;
-      if (encoding.hasBOM && encoding.encoding === 'utf-8' && params.content.charCodeAt(0) === 0xfeff) {
+      if (
+        encoding.hasBOM &&
+        encoding.encoding === 'utf-8' &&
+        params.content.charCodeAt(0) === 0xfeff
+      ) {
         finalContent = params.content.slice(1);
       }
 
