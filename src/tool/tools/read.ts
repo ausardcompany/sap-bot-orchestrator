@@ -6,6 +6,12 @@ import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { defineTool, truncateOutput, MAX_LINES, type ToolResult } from '../index.js';
+import {
+  detectEncoding,
+  decodeWithEncoding,
+  isBinaryFile,
+  type EncodingInfo,
+} from '../encoded-io.js';
 
 const ReadParamsSchema = z.object({
   filePath: z.string().describe('Absolute path to the file or directory to read'),
@@ -29,6 +35,13 @@ interface ReadDirResult {
 }
 
 type ReadResult = ReadFileResult | ReadDirResult;
+
+// Store encoding info for later write operations
+const fileEncodings = new Map<string, EncodingInfo>();
+
+export function getFileEncoding(filePath: string): EncodingInfo | undefined {
+  return fileEncodings.get(filePath);
+}
 
 export const readTool = defineTool<typeof ReadParamsSchema, ReadResult>({
   name: 'read',
@@ -75,7 +88,23 @@ Usage:
       }
 
       // Read file
-      const content = await fs.readFile(filePath, 'utf-8');
+      const buffer = await fs.readFile(filePath);
+
+      // Check for binary first
+      if (isBinaryFile(buffer)) {
+        return {
+          success: false,
+          error: `Cannot read binary file: ${filePath}`,
+        };
+      }
+
+      // Detect and decode with proper encoding
+      const encoding = detectEncoding(buffer);
+      const content = decodeWithEncoding(buffer, encoding);
+
+      // Cache encoding for write operations
+      fileEncodings.set(filePath, encoding);
+
       const lines = content.split('\n');
       const totalLines = lines.length;
 

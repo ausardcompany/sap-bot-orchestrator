@@ -16,7 +16,6 @@ Thank you for your interest in contributing to Alexi! This document provides gui
 ## Code of Conduct
 
 This project follows a professional code of conduct. We expect all contributors to:
-
 - Be respectful and inclusive
 - Provide constructive feedback
 - Focus on technical merit
@@ -25,7 +24,6 @@ This project follows a professional code of conduct. We expect all contributors 
 ## Getting Started
 
 ### Prerequisites
-
 - Node.js 22 or higher
 - npm or yarn package manager
 - Git
@@ -40,30 +38,25 @@ This project follows a professional code of conduct. We expect all contributors 
    git clone git@github.com:YOUR_USERNAME/alexi.git
    cd alexi
    ```
-
 3. Install dependencies:
    ```bash
    npm install
    ```
-
 4. Configure environment variables:
    ```bash
    cp .env.example .env
    # Edit .env with your SAP AI Core credentials
    ```
-
 5. Build the project:
    ```bash
    npm run build
    ```
-
 6. Verify the setup:
    ```bash
    node dist/cli/program.js --help
    ```
 
 ### Environment Configuration
-
 Create a `.env` file (never commit this file) with:
 
 ```bash
@@ -80,7 +73,6 @@ AICORE_RESOURCE_GROUP=your-resource-group-id
 ## Development Workflow
 
 ### Branch Strategy
-
 - `main`: Production-ready code
 - `feature/*`: New features
 - `fix/*`: Bug fixes
@@ -107,33 +99,26 @@ graph LR
    ```bash
    git checkout -b feature/your-feature-name
    ```
-
 2. Make your changes following coding standards
-
 3. Write or update tests for your changes
-
 4. Run tests locally:
    ```bash
    npm test
    ```
-
 5. Build and verify:
    ```bash
    npm run build
    npm run lint
    ```
-
 6. Commit your changes with descriptive messages:
    ```bash
    git add .
    git commit -m "feat: add new feature description"
    ```
-
 7. Push to your fork:
    ```bash
    git push origin feature/your-feature-name
    ```
-
 8. Create a pull request on GitHub
 
 ## Coding Standards
@@ -146,7 +131,6 @@ graph LR
    function processMessage(message: string): Promise<Response> {
      // ...
    }
-   
    // Bad
    function processMessage(message: any): any {
      // ...
@@ -155,24 +139,20 @@ graph LR
 
 2. **Interfaces over Types**: Prefer interfaces for object shapes
    ```typescript
-   // Good
    interface ToolContext {
      workdir: string;
      signal?: AbortSignal;
    }
-   
    // Acceptable for unions/intersections
    type PermissionAction = 'read' | 'write' | 'execute';
    ```
 
 3. **Async/Await**: Use async/await over raw promises
    ```typescript
-   // Good
    async function fetchData(): Promise<Data> {
      const response = await fetch(url);
      return await response.json();
    }
-   
    // Avoid
    function fetchData(): Promise<Data> {
      return fetch(url).then(r => r.json());
@@ -192,34 +172,18 @@ graph LR
 
 5. **Null Safety**: Use optional chaining and nullish coalescing
    ```typescript
-   // Good
    const value = context?.workdir ?? process.cwd();
-   
-   // Avoid
-   const value = context && context.workdir ? context.workdir : process.cwd();
    ```
 
 6. **Unused Variables**: Remove or prefix with underscore
    ```typescript
-   // Good - Remove if truly unused
-   const lines = content.split(lineEnding);
-   const startIdx = Math.max(0, params.startLine - 1);
-   const endIdx = Math.min(lines.length, params.endLine);
-   searchContent = lines.slice(startIdx, endIdx).join(lineEnding);
-   
-   // Good - Prefix with underscore if needed for future use
    function processData(_context: Context, data: Data): Result {
      return transform(data);
    }
-   
-   // Bad - Declared but never used
-   let lineOffset = 0;
-   const startIdx = Math.max(0, params.startLine - 1);
    ```
 
 7. **Graceful Degradation**: Handle optional dependencies gracefully
    ```typescript
-   // Good - Return null if initialization fails
    function getTsParser(): Parser | null {
      if (!Parser) {
        return null;
@@ -230,8 +194,7 @@ graph LR
      }
      return tsParser;
    }
-   
-   // Usage - Check for null before using
+   // Usage
    const parser = getTsParser();
    if (!parser) {
      return null; // Skip parsing, don't fail
@@ -241,71 +204,43 @@ graph LR
 
 8. **Zod Schema Naming**: Use private schema constants to avoid ESLint naming conflicts
    ```typescript
-   // Good - Private schema constant with underscore prefix
+   // Good
    const _ToolIDSchema = z.string().describe('Unique identifier for a tool');
    export type ToolID = z.infer<typeof _ToolIDSchema>;
-   
-   const _ToolMetadataSchema = z.object({
-     id: _ToolIDSchema,
-     name: z.string(),
-     description: z.string(),
-   });
-   export type ToolMetadata = z.infer<typeof _ToolMetadataSchema>;
-   
-   // Bad - Schema and type with same name causes ESLint errors
-   export const ToolID = z.string().describe('Unique identifier for a tool');
-   export type ToolID = z.infer<typeof ToolID>;
    ```
-
+   
 ### File Organization
 
 ```
 src/
-├── cli/              # CLI-related code
-│   ├── program.ts    # Main CLI entry point
-│   └── commands/     # Individual CLI commands
-├── core/             # Core orchestration logic
-│   ├── orchestrator.ts
-│   ├── router.ts
-│   └── agenticChat.ts
-├── providers/        # LLM provider implementations
-│   ├── openai/
-│   ├── bedrock/
-│   └── anthropic/
-├── tool/             # Tool system
-│   ├── index.ts      # Tool framework
-│   └── tools/        # Individual tool implementations
-├── permission/       # Permission system
-│   └── index.ts
-├── session/          # Session management
-└── bus/              # Event bus system
+├── cli/          # CLI entry point
+├── core/         # Orchestrator, router, session management
+├── providers/    # SAP AI Core provider
+├── agent/        # Agent system
+├── tool/         # Tool implementations (read, write, edit, glob, grep, etc.)
+├── permission/   # Permission system
+└── bus/          # Event bus
 ```
 
 ### Naming Conventions
-
 - **Files**: camelCase for TypeScript files (`orchestrator.ts`)
 - **Classes**: PascalCase (`class ToolRegistry`)
 - **Functions**: camelCase (`function defineTool()`)
 - **Constants**: UPPER_SNAKE_CASE (`const MAX_LINES = 2000`)
-- **Interfaces**: PascalCase (`interface ToolContext`)
-- **Types**: PascalCase (`type PermissionAction`)
+- **Interfaces/Types**: PascalCase (`interface ToolContext`, `type PermissionAction`)
 
 ### Code Style
-
 - Use 2 spaces for indentation
-- Maximum line length: 100 characters (flexible for readability)
+- Maximum line length: 100 characters
 - Use single quotes for strings
-- Include trailing commas in multi-line objects/arrays
+- Include trailing commas
 - Use semicolons
 
 ### Documentation Comments
-
 Use JSDoc for functions and classes:
-
 ```typescript
 /**
  * Define a new tool with lazy initialization
- * 
  * @param definition - Tool definition with parameters and execution logic
  * @returns Tool instance with execution methods
  */
@@ -319,7 +254,6 @@ export function defineTool<TParams extends z.ZodType, TResult>(
 ## Testing Guidelines
 
 ### Test Structure
-
 - Place tests next to the code they test: `tool.test.ts` next to `tool.ts`
 - Use descriptive test names
 - Follow Arrange-Act-Assert pattern
@@ -338,10 +272,8 @@ describe('defineTool', () => {
       },
       execute: async () => ({ success: true }),
     };
-    
     // Act
     const tool = defineTool(definition);
-    
     // Assert
     expect(tool.name).toBe('test-tool');
     expect(tool.toFunctionSchema()).toBeDefined();
@@ -350,7 +282,6 @@ describe('defineTool', () => {
 ```
 
 ### Running Tests
-
 ```bash
 # Run all tests
 npm test
@@ -363,71 +294,21 @@ npm test -- --coverage
 
 # Watch mode
 npm test -- --watch
-
-# Run TUI command tests
-npm test -- tests/commands-image.test.tsx
-
-# Run tests matching a pattern
-npm test -- --grep "line endings"
 ```
 
-### Testing TUI Commands
+### Mocking and Temporary Directories
+- Always use temporary directories for file operation tests
+- Clean up temp directories after tests
+- Mock permission system to bypass checks during testing
 
-TUI commands require special testing patterns with React context mocking:
-
-```typescript
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import React from 'react';
-import { render } from 'ink-testing-library';
-import { Text } from 'ink';
-
-// Mock contexts BEFORE importing hooks
-const mockPasteFromClipboard = vi.fn().mockResolvedValue(undefined);
-const mockAddFromFile = vi.fn().mockResolvedValue(undefined);
-
-vi.mock('../src/cli/tui/context/AttachmentContext.js', () => ({
-  useAttachments: () => ({
-    pasteFromClipboard: mockPasteFromClipboard,
-    addFromFile: mockAddFromFile,
-    clearAll: vi.fn(),
-  }),
-}));
-
-// Import AFTER mocks
-import { useCommands } from '../src/cli/tui/hooks/useCommands.js';
-
-describe('TUI commands', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('should handle /image command', async () => {
-    let captured;
-    function CommandCapture() {
-      captured = useCommands();
-      return <Text>ready</Text>;
-    }
-    
-    render(<CommandCapture />);
-    
-    const handled = await captured.handleCommand('/image ./photo.png');
-    expect(handled).toBe(true);
-    expect(mockAddFromFile).toHaveBeenCalledWith('./photo.png');
-  });
-});
-```
-
-Key principles for TUI testing:
-1. Mock all React contexts before importing hooks
-2. Use ink-testing-library for rendering
-3. Capture hook return values through a component
-4. Clear mocks between tests with vi.clearAllMocks()
-5. Test both command dispatch and context interactions
+### TUI Command Testing
+- Mock React contexts before importing hooks
+- Use ink-testing-library for rendering
+- Clear mocks between tests
 
 ## Pull Request Process
 
 ### Before Submitting
-
 1. Ensure all tests pass
 2. Update relevant documentation
 3. Add entries to CHANGELOG.md if needed
@@ -435,9 +316,7 @@ Key principles for TUI testing:
 5. Run linter and fix issues
 
 ### PR Title Format
-
 Use conventional commit format:
-
 - `feat: add new feature`
 - `fix: resolve bug in tool system`
 - `docs: update API documentation`
@@ -446,17 +325,13 @@ Use conventional commit format:
 - `chore: update dependencies`
 
 ### PR Description
-
 Include:
-
 1. **Summary**: Brief description of changes
 2. **Motivation**: Why this change is needed
 3. **Changes**: List of specific changes made
 4. **Testing**: How changes were tested
-5. **Screenshots**: If UI changes (not applicable for CLI)
 
 Example:
-
 ```markdown
 ## Summary
 Enhanced write and edit tools with relative path resolution for permission checks.
@@ -478,9 +353,7 @@ for permission checks to work with the workdir context.
 ```
 
 ### Automated Checks
-
 Pull requests trigger automated workflows:
-
 1. **CI**: Runs tests, linting, and build verification
 2. **Documentation Update**: AI-powered documentation generation
    - Analyzes code changes
@@ -508,7 +381,6 @@ For auto/* branches, if CI fails, the CI Auto-Fix workflow will:
 - Rate-limited to 2 runs per branch per day
 
 ### Code Review
-
 All PRs require:
 - At least one approval from a maintainer
 - Passing CI checks
@@ -525,7 +397,6 @@ Reviewers will check:
 ## Documentation
 
 ### Documentation Files
-
 | File | Purpose |
 |------|---------|
 | `README.md` | Project overview and quick start |
@@ -540,7 +411,6 @@ Reviewers will check:
 | `CHANGELOG.md` | Version history |
 
 ### Documentation Standards
-
 1. Use clear, technical language
 2. Include code examples from actual codebase
 3. Add Mermaid diagrams for complex concepts
@@ -548,9 +418,7 @@ Reviewers will check:
 5. Use proper markdown formatting
 
 ### Mermaid Diagrams
-
 Include at least 3 Mermaid diagrams in major documentation:
-
 ```mermaid
 graph TD
     A[Start] --> B[Process]
@@ -566,9 +434,7 @@ Supported diagram types:
 ## Automation System
 
 ### Autonomous Sync
-
 Alexi includes an autonomous upstream synchronization system:
-
 ```mermaid
 graph LR
     A[Daily Schedule] --> B[Sync Forks]
@@ -587,7 +453,6 @@ The system:
 - Auto-merges after CI passes
 
 ### Agentic File Operations
-
 The tool system supports autonomous file operations with:
 
 **Automatic Permission Configuration**:
@@ -614,9 +479,7 @@ getResource: (params, context) => {
 ```
 
 ### Contributing to Automation
-
 When modifying workflows:
-
 1. Test with manual dispatch first
 2. Use dry-run mode for sync workflows
 3. Update `docs/AUTOMATION.md`
@@ -624,18 +487,15 @@ When modifying workflows:
 5. Ensure backward compatibility
 
 ## Getting Help
-
 - Open an issue for bugs or feature requests
 - Join discussions for questions
 - Check existing issues before creating new ones
 - Provide minimal reproducible examples for bugs
 
 ## License
-
 By contributing, you agree that your contributions will be licensed under the same license as the project.
 
 ## Recognition
-
 Contributors are recognized in:
 - GitHub contributors page
 - Release notes for significant contributions
