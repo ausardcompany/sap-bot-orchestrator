@@ -86,7 +86,7 @@ export function getModelPromptKey(modelId: string): string {
     return 'ling';
   }
   // Check for ling after separator
-  if (id.match(/[\/:]ling[-_]/)) {
+  if (id.match(/[/:]ling[-_]/)) {
     return 'ling';
   }
   return 'default';

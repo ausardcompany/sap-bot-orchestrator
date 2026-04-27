@@ -7,7 +7,6 @@ import { defineTool, type ToolResult } from '../index.js';
 import {
   dismissQuestion,
   isQuestionDismissed,
-  setCustomAnswer,
   getCustomAnswer,
   clearQuestionState,
 } from '../../bus/question-state.js';
