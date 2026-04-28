@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import * as path from 'path';
 import * as os from 'os';
-import { matchPattern, matchPatterns, matchCommand, isUnderDirectory } from './wildcard.js';
+import { matchPattern, matchPatterns, matchCommand } from './wildcard.js';
 import {
   PermissionRequested,
   PermissionResponse,

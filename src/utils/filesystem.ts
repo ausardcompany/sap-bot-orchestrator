@@ -61,7 +61,7 @@ export async function safePathCheck(
       // In this case, trust the initial containment check
       return { contained: true, resolved };
     }
-  } catch (err) {
+  } catch {
     // Path resolution failed
     return { contained: false, resolved: child };
   }
