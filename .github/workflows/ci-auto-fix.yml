@@ -217,15 +217,20 @@ jobs:
         with:
           node-version: '22'
 
-      # ─── Step 7: Build Alexi CLI ──────────────────────────────────────────────
-      - name: Build Alexi CLI
+      # ─── Step 7: Install Kilo CLI and project dependencies ─────────────────────
+      - name: Install Kilo CLI
         if: steps.retry_check.outputs.should_skip != 'true'
         run: |
-          echo "Installing dependencies..."
+          echo "Installing Kilo CLI..."
+          npm install -g @kilocode/cli
+          echo "[OK] Kilo CLI version: $(kilo --version)"
+
+      - name: Install project dependencies
+        if: steps.retry_check.outputs.should_skip != 'true'
+        run: |
+          echo "Installing project dependencies..."
           npm ci
-          echo "Building Alexi CLI..."
-          npm run build
-          echo "[OK] Alexi CLI built successfully"
+          echo "[OK] Project dependencies installed"
 
       # ─── Step 8: Run quick auto-fixes (lint + format) ────────────────────────
       - name: Run quick auto-fixes (lint + format)
@@ -380,8 +385,8 @@ jobs:
 
           echo "[OK] ci-fix-prompt.md built ($(wc -l < ci-fix-prompt.md) lines)"
 
-      # ─── Step 10: Run Alexi agent to fix remaining issues ────────────────────
-      - name: Run Alexi agent to fix CI failures
+      # ─── Step 10: Run Kilo CLI to fix remaining issues ─────────────────────────
+      - name: Run Kilo CLI to fix CI failures
         id: bot
         if: >
           steps.retry_check.outputs.should_skip != 'true' &&
@@ -392,9 +397,9 @@ jobs:
           AICORE_RESOURCE_GROUP: ${​{ secrets.AICORE_RESOURCE_GROUP }}
           AICORE_SERVICE_KEY: ${​{ secrets.AICORE_SERVICE_KEY }}
         run: |
-          echo "Running Alexi agent with SAP AI Core..."
+          echo "Running Kilo CLI with SAP AI Core (autonomous mode)..."
 
-          SYSTEM_PROMPT="$(cat .github/prompts/ci-fix-system.md)"
+          PROMPT=$(cat ci-fix-prompt.md)
 
           MAX_RETRIES=2
           ATTEMPT=0
@@ -404,16 +409,9 @@ jobs:
             ATTEMPT=$((ATTEMPT + 1))
             echo "=== Attempt $ATTEMPT of $MAX_RETRIES ==="
 
-            node dist/cli/program.js agent \
-              --message-file ci-fix-prompt.md \
-              --auto-route \
-              --effort high \
-              --max-iterations 20 \
-              --tools "read,write,edit,glob,grep,bash" \
-              --workdir "$(pwd)" \
-              --verbose \
-              --no-auto-commits \
-              --system "$SYSTEM_PROMPT" \
+            kilo run "$PROMPT" \
+              --auto \
+              -m "sap-ai-core/anthropic--claude-4.6-opus" \
               > bot-output.log 2>&1
 
             BOT_EXIT_CODE=$?
@@ -440,10 +438,10 @@ jobs:
 
           if [ $BOT_EXIT_CODE -eq 0 ]; then
             echo "success=true" >> $GITHUB_OUTPUT
-            echo "[OK] Alexi agent completed successfully (attempt $ATTEMPT)"
+            echo "[OK] Kilo CLI completed successfully (attempt $ATTEMPT)"
           else
             echo "success=false" >> $GITHUB_OUTPUT
-            echo "[WARN] Alexi agent exited with code $BOT_EXIT_CODE after $ATTEMPT attempt(s)"
+            echo "[WARN] Kilo CLI exited with code $BOT_EXIT_CODE after $ATTEMPT attempt(s)"
           fi
 
           echo "=== Bot Output (last 100 lines) ==="
@@ -604,15 +602,15 @@ jobs:
             if (fixesVerified) {
               comment += `## ✅ CI Auto-Fix Succeeded\n\n`;
               if (quickFixOnly) {
-                comment += `**Alexi** resolved all CI failures on \`${branch}\` using deterministic fixes (lint:fix + format).\n\n`;
+                comment += `**Kilo** resolved all CI failures on \`${branch}\` using deterministic fixes (lint:fix + format).\n\n`;
               } else {
-                comment += `**Alexi** automatically fixed the CI failures on \`${branch}\` using SAP AI Core.\n\n`;
+                comment += `**Kilo** automatically fixed the CI failures on \`${branch}\` using SAP AI Core.\n\n`;
               }
               comment += `- **Files changed**: ${changesCount}\n`;
               comment += `- **CI re-triggered**: yes (push event)\n\n`;
             } else {
               comment += `## ⚠️ CI Auto-Fix Attempted — Not Fully Resolved\n\n`;
-              comment += `**Alexi** attempted to fix CI failures on \`${branch}\` but could not fully resolve all issues.\n\n`;
+              comment += `**Kilo** attempted to fix CI failures on \`${branch}\` but could not fully resolve all issues.\n\n`;
               comment += `Manual intervention may be required. See the artifacts for full details.\n\n`;
             }
 
