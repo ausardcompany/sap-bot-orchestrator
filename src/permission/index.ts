@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import * as path from 'path';
 import * as os from 'os';
-import { matchPattern, matchPatterns, matchCommand, isUnderDirectory } from './wildcard.js';
+import { matchPattern, matchPatterns, matchCommand } from './wildcard.js';
 import {
   PermissionRequested,
   PermissionResponse,
@@ -21,6 +21,7 @@ import {
   defineEvent,
 } from '../bus/index.js';
 import { ConfigProtection } from './config-paths.js';
+import { containsPath, safePathCheck } from '../utils/filesystem.js';
 
 // Permission action types
 export type PermissionAction = 'read' | 'write' | 'execute' | 'network' | 'admin';
@@ -275,10 +276,20 @@ export class PermissionManager {
 
   /**
    * Check if a path is external to the project
+   * Uses enhanced path containment checking with symlink resolution
    */
   isExternalPath(targetPath: string): boolean {
     const resolved = path.resolve(targetPath);
-    return !isUnderDirectory(resolved, this.projectRoot);
+    // Use enhanced containsPath that handles edge cases
+    return !containsPath(this.projectRoot, resolved);
+  }
+
+  /**
+   * Async check if a path is external, including symlink resolution
+   */
+  async isExternalPathAsync(targetPath: string): Promise<boolean> {
+    const result = await safePathCheck(this.projectRoot, targetPath);
+    return !result.contained;
   }
 
   /**
