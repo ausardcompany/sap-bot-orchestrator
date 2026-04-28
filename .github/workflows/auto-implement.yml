@@ -1,0 +1,455 @@
+name: Auto-Implement Features
+
+on:
+  schedule:
+    # Run every 4 hours
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Specific issue number to implement (skip queue)'
+        required: false
+        type: number
+      dry_run:
+        description: 'Dry run — analyze only, do not create branch/PR'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: auto-implement
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  implement:
+    name: Auto-Implement Feature
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ─── Step 1: Pick the next issue to implement ─────────────────────────────
+      - name: Pick next issue
+        id: pick
+        run: |
+          if [ -n "${​{ inputs.issue_number }}" ]; then
+            # Manual dispatch — use the specified issue
+            ISSUE_NUMBER="${​{ inputs.issue_number }}"
+            echo "[INFO] Manual dispatch: implementing issue #$ISSUE_NUMBER"
+          else
+            # Scheduled run — pick the oldest open issue with 'auto-implement' label
+            ISSUE=$(gh api "repos/$GITHUB_REPOSITORY/issues?labels=auto-implement&state=open&sort=created&direction=asc&per_page=1" \
+              --jq '.[0]')
+
+            if [ "$ISSUE" = "null" ] || [ -z "$ISSUE" ]; then
+              echo "[INFO] No issues with 'auto-implement' label found. Nothing to do."
+              echo "has_issue=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            ISSUE_NUMBER=$(echo "$ISSUE" | jq -r '.number')
+          fi
+
+          # Fetch full issue details
+          ISSUE_DATA=$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")
+
+          ISSUE_TITLE=$(echo "$ISSUE_DATA" | jq -r '.title')
+          ISSUE_BODY=$(echo "$ISSUE_DATA" | jq -r '.body // ""')
+          ISSUE_LABELS=$(echo "$ISSUE_DATA" | jq -r '[.labels[].name] | join(",")')
+          ISSUE_STATE=$(echo "$ISSUE_DATA" | jq -r '.state')
+
+          if [ "$ISSUE_STATE" != "open" ]; then
+            echo "[WARN] Issue #$ISSUE_NUMBER is not open (state: $ISSUE_STATE). Skipping."
+            echo "has_issue=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check if a PR already exists for this issue
+          EXISTING_PR=$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" \
+            --jq "[.[] | select(.title | test(\"#${ISSUE_NUMBER}\"))] | length")
+
+          if [ "${EXISTING_PR:-0}" -gt 0 ]; then
+            echo "[INFO] PR already exists for issue #$ISSUE_NUMBER. Skipping."
+            echo "has_issue=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Generate branch name from issue
+          SAFE_TITLE=$(echo "$ISSUE_TITLE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | head -c 50)
+          BRANCH_NAME="auto/${ISSUE_NUMBER}-${SAFE_TITLE}"
+
+          echo "has_issue=true" >> $GITHUB_OUTPUT
+          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+          echo "issue_title=$ISSUE_TITLE" >> $GITHUB_OUTPUT
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+          # Save issue body to file (may be large)
+          echo "$ISSUE_BODY" > /tmp/issue-body.md
+
+          echo "[OK] Selected issue #$ISSUE_NUMBER: $ISSUE_TITLE"
+          echo "     Branch: $BRANCH_NAME"
+          echo "     Labels: $ISSUE_LABELS"
+        env:
+          GH_TOKEN: ${​{ secrets.GITHUB_TOKEN }}
+
+      # ─── Step 2: Checkout and create branch ────────────────────────────────────
+      - name: Checkout repository
+        if: steps.pick.outputs.has_issue == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${​{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Create feature branch
+        if: steps.pick.outputs.has_issue == 'true' && inputs.dry_run != true
+        run: |
+          BRANCH="${​{ steps.pick.outputs.branch_name }}"
+          git config user.name "kilo-bot[bot]"
+          git config user.email "kilo-bot[bot]@users.noreply.github.com"
+
+          # Check if branch already exists
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "[INFO] Branch $BRANCH already exists. Checking out."
+            git checkout "$BRANCH"
+            git pull origin "$BRANCH"
+          else
+            git checkout -b "$BRANCH"
+            echo "[OK] Created branch: $BRANCH"
+          fi
+        env:
+          GH_TOKEN: ${​{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+
+      # ─── Step 3: Setup environment ─────────────────────────────────────────────
+      - name: Setup Node.js
+        if: steps.pick.outputs.has_issue == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Kilo CLI and project dependencies
+        if: steps.pick.outputs.has_issue == 'true'
+        run: |
+          npm install -g @kilocode/cli
+          echo "[OK] Kilo CLI version: $(kilo --version)"
+          npm ci
+          echo "[OK] Project dependencies installed"
+
+      # ─── Step 4: Label issue as in-progress ────────────────────────────────────
+      - name: Mark issue as in-progress
+        if: steps.pick.outputs.has_issue == 'true' && inputs.dry_run != true
+        run: |
+          ISSUE_NUMBER="${​{ steps.pick.outputs.issue_number }}"
+          gh issue edit "$ISSUE_NUMBER" --add-label "in-progress" --remove-label "auto-implement" || true
+          gh issue comment "$ISSUE_NUMBER" --body "🤖 **Kilo** is starting to implement this feature automatically.
+
+          - **Branch**: \`${​{ steps.pick.outputs.branch_name }}\`
+          - **Model**: \`sap-ai-core/anthropic--claude-4.6-opus\`
+          - **Run**: [View workflow](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)
+
+          Implementation in progress..."
+        env:
+          GH_TOKEN: ${​{ secrets.GITHUB_TOKEN }}
+
+      # ─── Step 5: Build implementation prompt ───────────────────────────────────
+      - name: Build implementation prompt
+        if: steps.pick.outputs.has_issue == 'true'
+        run: |
+          ISSUE_NUMBER="${​{ steps.pick.outputs.issue_number }}"
+          ISSUE_TITLE="${​{ steps.pick.outputs.issue_title }}"
+
+          # Restore issue body
+          ISSUE_BODY=""
+          if [ -f /tmp/issue-body.md ]; then
+            ISSUE_BODY=$(cat /tmp/issue-body.md)
+          fi
+
+          {
+            echo "# Feature Implementation Task"
+            echo ""
+            echo "## Issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}"
+            echo ""
+            echo "### Description"
+            echo ""
+            echo "$ISSUE_BODY"
+            echo ""
+            echo "---"
+            echo ""
+            echo "## Instructions"
+            echo ""
+            echo "You are implementing a feature for the **Alexi** project — a TypeScript/Node.js CLI application (intelligent LLM orchestrator for SAP AI Core)."
+            echo ""
+            echo "### Project conventions"
+            echo ""
+            echo "- TypeScript 5.x, ES2022 target, NodeNext module, strict mode"
+            echo "- 2 spaces, single quotes, semicolons, 100 char line width"
+            echo "- Always use \`.js\` extension for local imports"
+            echo "- Use \`unknown\` instead of \`any\`, prefix unused params with \`_\`"
+            echo "- Follow conventional commits: \`feat(scope)\`, \`fix(scope)\`, \`test(scope)\`"
+            echo "- Scopes: cli, core, providers, config, server, agent, tools, ci, deps, tests"
+            echo ""
+            echo "### Implementation steps"
+            echo ""
+            echo "1. **Read the issue description** carefully and understand the requirements"
+            echo "2. **Explore the codebase** — use \`glob\` and \`grep\` to find related files"
+            echo "3. **Read existing code** — understand the patterns, interfaces, and architecture"
+            echo "4. **Plan your changes** — identify which files to create or modify"
+            echo "5. **Implement** — write clean, well-typed code following project conventions"
+            echo "6. **Write tests** — add unit tests in \`tests/\` directory using Vitest"
+            echo "7. **Verify** — run these checks and fix any issues:"
+            echo "   - \`npm run typecheck\` — no type errors"
+            echo "   - \`npm run lint\` — no lint errors"
+            echo "   - \`npm run format:check\` — proper formatting"
+            echo "   - \`npm test\` — all tests pass"
+            echo "   - \`npm run build\` — builds successfully"
+            echo ""
+            echo "### Hard constraints"
+            echo ""
+            echo "- Do NOT change \`.github/\` workflow files"
+            echo "- Do NOT change \`package.json\` version field"
+            echo "- Do NOT add \`// eslint-disable\` or \`@ts-ignore\` comments"
+            echo "- All new code MUST have tests"
+            echo "- All checks MUST pass before you finish"
+            echo ""
+            echo "### Scope"
+            echo ""
+            echo "Implement ONLY what is described in the issue above."
+            echo "Do not refactor unrelated code or add features not requested."
+          } > /tmp/implement-prompt.txt
+
+          echo "[OK] Prompt built ($(wc -l < /tmp/implement-prompt.txt) lines)"
+
+      # ─── Step 6: Run Kilo CLI to implement the feature ─────────────────────────
+      - name: Run Kilo CLI
+        id: kilo
+        if: steps.pick.outputs.has_issue == 'true' && inputs.dry_run != true
+        continue-on-error: true
+        timeout-minutes: 20
+        env:
+          AICORE_RESOURCE_GROUP: ${​{ secrets.AICORE_RESOURCE_GROUP }}
+          AICORE_SERVICE_KEY: ${​{ secrets.AICORE_SERVICE_KEY }}
+        run: |
+          PROMPT=$(cat /tmp/implement-prompt.txt)
+
+          echo "Running Kilo CLI to implement feature..."
+          kilo run "$PROMPT" \
+            --auto \
+            -m "sap-ai-core/anthropic--claude-4.6-opus" \
+            > kilo-output.log 2>&1
+
+          KILO_EXIT=$?
+          echo "exit_code=$KILO_EXIT" >> $GITHUB_OUTPUT
+
+          if [ $KILO_EXIT -eq 0 ]; then
+            echo "success=true" >> $GITHUB_OUTPUT
+            echo "[OK] Kilo CLI completed successfully"
+          else
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "[WARN] Kilo CLI exited with code $KILO_EXIT"
+          fi
+
+          echo "=== Kilo Output (last 100 lines) ==="
+          tail -100 kilo-output.log
+
+      # ─── Step 7: Verify implementation ─────────────────────────────────────────
+      - name: Verify implementation
+        id: verify
+        if: steps.pick.outputs.has_issue == 'true' && inputs.dry_run != true
+        run: |
+          ALL_PASSED=true
+          RESULTS=""
+
+          run_check() {
+            local name="$1"
+            local cmd="$2"
+            echo "--- Verifying: $name ---"
+            if eval "$cmd" > /tmp/check.log 2>&1; then
+              echo "[PASS] $name"
+              RESULTS="$RESULTS\n- ✅ $name"
+            else
+              echo "[FAIL] $name"
+              tail -15 /tmp/check.log
+              RESULTS="$RESULTS\n- ❌ $name"
+              ALL_PASSED=false
+            fi
+          }
+
+          run_check "typecheck" "npm run typecheck"
+          run_check "lint" "npm run lint"
+          run_check "format" "npm run format:check"
+          run_check "build" "npm run build"
+          run_check "tests" "npm test"
+
+          echo -e "$RESULTS" > verify-results.txt
+
+          if [ "$ALL_PASSED" = true ]; then
+            echo "verified=true" >> $GITHUB_OUTPUT
+            echo "[OK] All checks pass"
+          else
+            echo "verified=false" >> $GITHUB_OUTPUT
+            echo "[WARN] Some checks failed"
+          fi
+
+      # ─── Step 8: Commit, push, and create PR ──────────────────────────────────
+      - name: Commit and push
+        id: commit
+        if: >
+          steps.pick.outputs.has_issue == 'true' &&
+          inputs.dry_run != true
+        run: |
+          BRANCH="${​{ steps.pick.outputs.branch_name }}"
+
+          # Stage all changes (src/, tests/, docs/)
+          git add -A
+
+          STAGED=$(git diff --cached --name-only)
+          if [ -z "$STAGED" ]; then
+            echo "[INFO] No changes to commit"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          CHANGES_COUNT=$(echo "$STAGED" | wc -l | tr -d ' ')
+          echo "Committing $CHANGES_COUNT file(s):"
+          echo "$STAGED"
+
+          ISSUE_NUMBER="${​{ steps.pick.outputs.issue_number }}"
+          git commit -m "feat: implement #${ISSUE_NUMBER} [kilo-bot]"
+          git push origin "$BRANCH"
+
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+          echo "changes_count=$CHANGES_COUNT" >> $GITHUB_OUTPUT
+          echo "[OK] Pushed $CHANGES_COUNT file(s) to $BRANCH"
+        env:
+          GH_TOKEN: ${​{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Create Pull Request
+        id: pr
+        if: >
+          steps.pick.outputs.has_issue == 'true' &&
+          steps.commit.outputs.has_changes == 'true' &&
+          inputs.dry_run != true
+        run: |
+          ISSUE_NUMBER="${​{ steps.pick.outputs.issue_number }}"
+          ISSUE_TITLE="${​{ steps.pick.outputs.issue_title }}"
+          BRANCH="${​{ steps.pick.outputs.branch_name }}"
+          VERIFIED="${​{ steps.verify.outputs.verified }}"
+          CHANGES_COUNT="${​{ steps.commit.outputs.changes_count }}"
+
+          # Read verify results
+          VERIFY_RESULTS=""
+          if [ -f verify-results.txt ]; then
+            VERIFY_RESULTS=$(cat verify-results.txt)
+          fi
+
+          if [ "$VERIFIED" = "true" ]; then
+            STATUS_EMOJI="✅"
+            STATUS_TEXT="All checks pass"
+          else
+            STATUS_EMOJI="⚠️"
+            STATUS_TEXT="Some checks need attention"
+          fi
+
+          PR_URL=$(gh pr create \
+            --title "feat: ${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
+            --body "$(cat <<EOF
+## Summary
+
+Automated implementation of #${ISSUE_NUMBER} by **Kilo CLI** using SAP AI Core.
+
+## Checks ${STATUS_EMOJI}
+
+${STATUS_TEXT}
+
+${VERIFY_RESULTS}
+
+## Changes
+
+- **Files changed**: ${CHANGES_COUNT}
+- **Branch**: \`${BRANCH}\`
+- **Model**: \`sap-ai-core/anthropic--claude-4.6-opus\`
+
+## Review Checklist
+
+- [ ] Code changes match the issue requirements
+- [ ] Tests cover the new functionality
+- [ ] No unintended side effects
+- [ ] Documentation updated if needed
+
+---
+Implemented by [Kilo CLI](https://kilo.ai) with SAP AI Core · Closes #${ISSUE_NUMBER}
+EOF
+)" \
+            --base master \
+            --head "$BRANCH" \
+            --label "auto-implemented" \
+            2>&1)
+
+          echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+          echo "[OK] PR created: $PR_URL"
+        env:
+          GH_TOKEN: ${​{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+
+      # ─── Step 9: Update issue with results ─────────────────────────────────────
+      - name: Update issue with results
+        if: steps.pick.outputs.has_issue == 'true' && inputs.dry_run != true && always()
+        run: |
+          ISSUE_NUMBER="${​{ steps.pick.outputs.issue_number }}"
+          KILO_SUCCESS="${​{ steps.kilo.outputs.success }}"
+          VERIFIED="${​{ steps.verify.outputs.verified }}"
+          PR_URL="${​{ steps.pr.outputs.pr_url }}"
+          HAS_CHANGES="${​{ steps.commit.outputs.has_changes }}"
+
+          if [ "$HAS_CHANGES" = "true" ] && [ -n "$PR_URL" ]; then
+            if [ "$VERIFIED" = "true" ]; then
+              COMMENT="✅ **Kilo** has successfully implemented this feature!
+
+          **Pull Request**: ${PR_URL}
+
+          All checks pass. Please review and merge."
+            else
+              COMMENT="⚠️ **Kilo** has implemented this feature but some checks need attention.
+
+          **Pull Request**: ${PR_URL}
+
+          Please review the PR — some checks may need manual fixes."
+            fi
+          elif [ "$KILO_SUCCESS" = "false" ]; then
+            COMMENT="❌ **Kilo** was unable to implement this feature automatically.
+
+          The AI agent encountered issues during implementation.
+          Manual implementation may be required.
+
+          [View workflow run](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
+
+            # Re-add auto-implement label for retry
+            gh issue edit "$ISSUE_NUMBER" --add-label "auto-implement" --remove-label "in-progress" || true
+          else
+            COMMENT="ℹ️ **Kilo** analyzed this feature but produced no code changes.
+
+          This may mean the feature requires manual implementation or the issue description needs more detail.
+
+          [View workflow run](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
+
+            # Re-add auto-implement label for retry
+            gh issue edit "$ISSUE_NUMBER" --add-label "auto-implement" --remove-label "in-progress" || true
+          fi
+
+          gh issue comment "$ISSUE_NUMBER" --body "$COMMENT"
+        env:
+          GH_TOKEN: ${​{ secrets.GITHUB_TOKEN }}
+
+      # ─── Step 10: Upload artifacts ─────────────────────────────────────────────
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auto-implement-${{ github.run_id }}
+          path: |
+            kilo-output.log
+            verify-results.txt
+          retention-days: 14
+          if-no-files-found: ignore

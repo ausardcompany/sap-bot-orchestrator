@@ -1,0 +1,276 @@
+name: Sync → Issues
+
+on:
+  workflow_run:
+    workflows: ['Repository Sync']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      max_issues:
+        description: 'Maximum number of issues to create'
+        required: false
+        type: number
+        default: 5
+      min_priority:
+        description: 'Minimum priority to create issues for'
+        required: false
+        type: choice
+        options:
+          - high
+          - medium
+          - low
+        default: high
+      dry_run:
+        description: 'Dry run — show what would be created without creating'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+jobs:
+  create-issues:
+    name: Create Issues from Feature Gaps
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only run when sync was successful
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      # ─── Step 1: Checkout (needed for sync module) ──────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install and build
+        run: |
+          npm ci
+          npm run build
+
+      # ─── Step 2: Download sync report from triggering workflow ──────────────
+      - name: Download sync reports
+        id: download
+        run: |
+          if [ "${​{ github.event_name }}" = "workflow_run" ]; then
+            RUN_ID="${​{ github.event.workflow_run.id }}"
+          else
+            # For manual dispatch, find the latest successful repo-sync run
+            RUN_ID=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows" \
+              --jq '.workflows[] | select(.name == "Repository Sync") | .id' | head -1)
+
+            if [ -n "$RUN_ID" ]; then
+              RUN_ID=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_ID/runs?status=success&per_page=1" \
+                --jq '.workflow_runs[0].id')
+            fi
+          fi
+
+          if [ -z "$RUN_ID" ]; then
+            echo "[WARN] No sync run found"
+            echo "has_reports=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Downloading artifacts from run $RUN_ID..."
+
+          # Download artifacts
+          gh run download "$RUN_ID" --name sync-reports --dir ./reports 2>/dev/null || {
+            echo "[WARN] Could not download sync-reports artifact"
+            echo "has_reports=false" >> $GITHUB_OUTPUT
+            exit 0
+          }
+
+          if [ -f "./reports/analysis-report.md" ]; then
+            echo "has_reports=true" >> $GITHUB_OUTPUT
+            echo "[OK] Analysis report downloaded"
+          else
+            echo "has_reports=false" >> $GITHUB_OUTPUT
+            echo "[WARN] analysis-report.md not found in artifacts"
+          fi
+        env:
+          GH_TOKEN: ${​{ secrets.GITHUB_TOKEN }}
+
+      # ─── Step 3: Analyze gaps and create issues ─────────────────────────────
+      - name: Create issues from feature gaps
+        if: steps.download.outputs.has_reports == 'true'
+        id: issues
+        env:
+          GH_TOKEN: ${​{ secrets.GITHUB_TOKEN }}
+          MAX_ISSUES: ${​{ inputs.max_issues || '5' }}
+          MIN_PRIORITY: ${​{ inputs.min_priority || 'high' }}
+          DRY_RUN: ${​{ inputs.dry_run || 'false' }}
+        run: |
+          node --input-type=module <<'NODE_EOF'
+          import { FeatureAnalyzer } from './dist/sync/analyzer.js';
+          import { readFileSync, appendFileSync } from 'fs';
+          import { execSync } from 'child_process';
+
+          const MAX_ISSUES = parseInt(process.env.MAX_ISSUES || '5', 10);
+          const MIN_PRIORITY = process.env.MIN_PRIORITY || 'high';
+          const DRY_RUN = process.env.DRY_RUN === 'true';
+
+          const priorityOrder = { high: 3, medium: 2, low: 1 };
+          const minPriorityValue = priorityOrder[MIN_PRIORITY] || 3;
+
+          console.log(`Config: max=${MAX_ISSUES}, minPriority=${MIN_PRIORITY}, dryRun=${DRY_RUN}`);
+
+          // Re-run analysis to get structured data
+          const analyzer = new FeatureAnalyzer();
+          const analysis = analyzer.analyzeChanges([]);
+
+          // Filter gaps by priority
+          const eligibleGaps = analysis.featureGaps
+            .filter(gap => {
+              const gapPriority = priorityOrder[gap.priority] || 0;
+              return gapPriority >= minPriorityValue && gap.missingInOur;
+            })
+            .sort((a, b) => (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0));
+
+          console.log(`Found ${eligibleGaps.length} eligible feature gaps (priority >= ${MIN_PRIORITY})`);
+
+          if (eligibleGaps.length === 0) {
+            console.log('No feature gaps to create issues for.');
+            appendFileSync(process.env.GITHUB_OUTPUT, 'created_count=0\n');
+            process.exit(0);
+          }
+
+          // Get existing issues to avoid duplicates
+          let existingIssueTitles = new Set();
+          try {
+            const issuesJson = execSync(
+              'gh issue list --label "auto-implement" --state all --json title --limit 100',
+              { encoding: 'utf-8' }
+            );
+            const issues = JSON.parse(issuesJson);
+            existingIssueTitles = new Set(issues.map(i => i.title.toLowerCase()));
+          } catch (e) {
+            console.warn('Could not fetch existing issues:', e.message);
+          }
+
+          let createdCount = 0;
+          const results = [];
+
+          for (const gap of eligibleGaps.slice(0, MAX_ISSUES)) {
+            const issueTitle = `[Feature Gap] ${gap.feature} (${gap.category})`;
+
+            // Skip if similar issue already exists
+            if (existingIssueTitles.has(issueTitle.toLowerCase())) {
+              console.log(`  [SKIP] Issue already exists: "${issueTitle}"`);
+              continue;
+            }
+
+            // Also check by feature name substring
+            const featureLower = gap.feature.toLowerCase();
+            const hasSimilar = [...existingIssueTitles].some(t => t.includes(featureLower));
+            if (hasSimilar) {
+              console.log(`  [SKIP] Similar issue exists for: "${gap.feature}"`);
+              continue;
+            }
+
+            // Build issue body
+            const body = [
+              `## Feature Gap: ${gap.feature}`,
+              '',
+              `**Category**: ${gap.category}`,
+              `**Priority**: ${gap.priority}`,
+              `**Estimated Effort**: ${gap.estimatedEffort}`,
+              `**Found in**: ${gap.foundIn.join(', ')}`,
+              '',
+              '### Description',
+              '',
+              gap.description,
+              '',
+              '### Implementation Hint',
+              '',
+              gap.implementationHint,
+              '',
+              '### Acceptance Criteria',
+              '',
+              '- [ ] Feature is implemented following project conventions',
+              '- [ ] Unit tests are written and passing',
+              '- [ ] No lint/type/format errors',
+              '- [ ] Documentation updated if needed',
+              '',
+              '---',
+              '',
+              '> Auto-generated from repository sync analysis.',
+              `> This issue is labeled \`auto-implement\` for automatic implementation by Kilo CLI.`,
+            ].join('\n');
+
+            // Labels for the issue
+            const labels = ['auto-implement', 'enhancement', gap.category];
+            if (gap.priority === 'high') {
+              labels.push('high-priority');
+            }
+
+            if (DRY_RUN) {
+              console.log(`  [DRY-RUN] Would create: "${issueTitle}"`);
+              console.log(`            Labels: ${labels.join(', ')}`);
+              console.log(`            Effort: ${gap.estimatedEffort}`);
+              results.push({ title: issueTitle, action: 'would-create' });
+              createdCount++;
+            } else {
+              try {
+                const labelArg = labels.join(',');
+                // Write body to temp file to avoid shell escaping issues
+                const tempFile = `/tmp/issue-body-${createdCount}.md`;
+                const { writeFileSync: wf } = await import('fs');
+                wf(tempFile, body);
+
+                execSync(
+                  `gh issue create --title "${issueTitle}" --label "${labelArg}" --body-file "${tempFile}"`,
+                  { stdio: 'inherit' }
+                );
+
+                console.log(`  [OK] Created: "${issueTitle}"`);
+                results.push({ title: issueTitle, action: 'created' });
+                createdCount++;
+
+                // Rate limiting
+                await new Promise(r => setTimeout(r, 2000));
+              } catch (err) {
+                console.error(`  [ERROR] Failed to create "${issueTitle}":`, err.message);
+                results.push({ title: issueTitle, action: 'failed', error: err.message });
+              }
+            }
+          }
+
+          console.log(`\nDone. Created ${createdCount} issue(s).`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `created_count=${createdCount}\n`);
+
+          // Write summary
+          const summary = [
+            '## Sync → Issues Results',
+            '',
+            `| # | Issue | Action |`,
+            `|---|-------|--------|`,
+            ...results.map((r, i) => `| ${i + 1} | ${r.title} | ${r.action} |`),
+            '',
+            `**Total created**: ${createdCount}`,
+            `**Dry run**: ${DRY_RUN}`,
+          ].join('\n');
+
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
+          NODE_EOF
+
+      # ─── Step 4: Summary ────────────────────────────────────────────────────
+      - name: Report results
+        if: always()
+        run: |
+          CREATED="${​{ steps.issues.outputs.created_count || '0' }}"
+          echo "Issues created: $CREATED"
+
+          if [ "$CREATED" = "0" ]; then
+            echo "[INFO] No new issues created (all gaps already have issues or no gaps found)"
+          else
+            echo "[OK] Created $CREATED new issue(s) with 'auto-implement' label"
+            echo "     These will be automatically implemented by the Auto-Implement workflow"
+          fi
