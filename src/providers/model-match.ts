@@ -1,0 +1,96 @@
+/**
+ * Model matching and detection utilities
+ * Identifies model families for routing and feature decisions
+ */
+
+/**
+ * Check if model ID represents a Ling model
+ * Excludes false positives: kling, bling, spelling, etc.
+ */
+export function isLing(modelId: string): boolean {
+  const lower = modelId.toLowerCase();
+
+  // Must start with "ling" as a word boundary
+  if (!lower.startsWith('ling')) {
+    // Check for ling after a separator
+    const lingIndex = lower.indexOf('ling');
+    if (lingIndex === -1) {
+      return false;
+    }
+
+    // Ensure it's a word boundary (preceded by separator)
+    const prevChar = lower[lingIndex - 1];
+    if (prevChar !== '-' && prevChar !== '_' && prevChar !== '/' && prevChar !== ':') {
+      return false;
+    }
+  }
+
+  // Exclude known false positives
+  const exclusions = ['kling', 'bling', 'spelling', 'sibling', 'handling', 'enabling'];
+  for (const exclusion of exclusions) {
+    if (lower.includes(exclusion)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Get model family for routing decisions
+ */
+export function getModelFamily(modelId: string): string {
+  if (isLing(modelId)) {
+    return 'ling';
+  }
+  if (modelId.includes('deepseek')) {
+    return 'deepseek';
+  }
+  if (modelId.includes('claude')) {
+    return 'claude';
+  }
+  if (modelId.includes('gpt')) {
+    return 'openai';
+  }
+  if (modelId.includes('gemini')) {
+    return 'google';
+  }
+  return 'unknown';
+}
+
+/**
+ * Check if model supports reasoning content
+ */
+export function supportsReasoning(modelId: string): boolean {
+  const family = getModelFamily(modelId);
+  return family === 'deepseek' || family === 'claude';
+}
+
+/**
+ * Check if model is a DeepSeek variant
+ */
+export function isDeepSeek(modelId: string): boolean {
+  return modelId.toLowerCase().includes('deepseek');
+}
+
+/**
+ * Check if model is Claude variant
+ */
+export function isClaude(modelId: string): boolean {
+  return modelId.toLowerCase().includes('claude');
+}
+
+/**
+ * Check if model is OpenAI variant
+ */
+export function isOpenAI(modelId: string): boolean {
+  const lower = modelId.toLowerCase();
+  return lower.includes('gpt') || lower.includes('o1') || lower.includes('openai');
+}
+
+/**
+ * Check if model is Google Gemini variant
+ */
+export function isGemini(modelId: string): boolean {
+  return modelId.toLowerCase().includes('gemini');
+}

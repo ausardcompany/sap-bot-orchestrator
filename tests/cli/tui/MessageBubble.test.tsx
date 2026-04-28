@@ -32,9 +32,9 @@ function renderBubble(overrides: Partial<MessageBubbleExtendedProps> = {}) {
 }
 
 describe('MessageBubble', () => {
-  it('renders user message with "You ❯" label and content', () => {
+  it('renders user message with "You" label and content', () => {
     const { lastFrame } = renderBubble({ role: 'user', content: 'hi there' });
-    expect(lastFrame()).toContain('You ❯');
+    expect(lastFrame()).toContain('You');
     expect(lastFrame()).toContain('hi there');
   });
 
@@ -44,13 +44,14 @@ describe('MessageBubble', () => {
       content: 'some markdown answer',
       agent: 'code',
     });
-    expect(lastFrame()).toContain('code ❯');
+    expect(lastFrame()).toContain('code');
     expect(lastFrame()).toContain('some markdown answer');
   });
 
-  it('renders system message as dimmed centered text', () => {
+  it('renders system message as full-width separator line', () => {
     const { lastFrame } = renderBubble({ role: 'system', content: 'session started' });
-    expect(lastFrame()).toContain('─ session started ─');
+    // System messages now render as a full-width ─ separator line
+    expect(lastFrame()).toContain('──────');
   });
 
   it('shows model and token count in assistant metadata', () => {
@@ -80,6 +81,6 @@ describe('MessageBubble', () => {
       role: 'assistant',
       content: 'response',
     });
-    expect(lastFrame()).toContain('assistant ❯');
+    expect(lastFrame()).toContain('assistant');
   });
 });

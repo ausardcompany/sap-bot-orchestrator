@@ -25,3 +25,6 @@ coverage/
 
 # Test artifacts
 *.tsbuildinfo
+
+# Kilo config (may contain secrets)
+kilo.json

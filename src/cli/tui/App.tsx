@@ -8,7 +8,13 @@ import { KeybindProvider, useKeybind } from './context/KeybindContext.js';
 import { DialogProvider, useDialog } from './context/DialogContext.js';
 import { AttachmentProvider, useAttachments } from './context/AttachmentContext.js';
 import type { ImageAttachmentPreview } from './context/AttachmentContext.js';
+import { SidebarProvider, useSidebar } from './context/SidebarContext.js';
+import { PageProvider, usePage } from './context/PageContext.js';
+import { ChatPage } from './pages/ChatPage.js';
+import { LogsPage } from './pages/LogsPage.js';
+import { useLogCollector } from './hooks/useLogCollector.js';
 import { useStreamChat } from './hooks/useStreamChat.js';
+import { useFileChanges } from './hooks/useFileChanges.js';
 import { usePermission } from './hooks/usePermission.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
 import { useCommands } from './hooks/useCommands.js';
@@ -25,13 +31,15 @@ import { McpManager } from './dialogs/McpManager.js';
 import type { McpManagerProps } from './dialogs/McpManager.js';
 import { CommandPalette } from './components/CommandPalette.js';
 import type { CommandPaletteProps } from './components/CommandPalette.js';
+import { HelpDialog } from './dialogs/HelpDialog.js';
+import { FilePicker } from './dialogs/FilePicker.js';
+import { QuitDialog } from './dialogs/QuitDialog.js';
+import { ThemeDialog } from './dialogs/ThemeDialog.js';
+import { ArgDialog } from './dialogs/ArgDialog.js';
+import type { HelpEntry, ArgField } from './types/props.js';
 import { useToolEvents } from './hooks/useToolEvents.js';
 import type { AgentName } from './theme/types.js';
 
-import { Header } from './components/Header.js';
-import { StatusBar } from './components/StatusBar.js';
-import { InputBox } from './components/InputBox.js';
-import { MessageArea } from './components/MessageArea.js';
 import type { MessageDisplay } from './components/MessageArea.js';
 // MessageBubble and ToolCallBlock are rendered inside MessageArea
 
@@ -79,7 +87,8 @@ export interface AppProps {
 // ---------------------------------------------------------------------------
 
 function DialogHost(): React.JSX.Element | null {
-  const { isOpen, currentType, currentEntry } = useDialog();
+  const { isOpen, currentType, currentEntry, close, cancel } = useDialog();
+  const { theme } = useTheme();
 
   if (!isOpen || currentEntry === null) {
     return null;
@@ -110,6 +119,83 @@ function DialogHost(): React.JSX.Element | null {
       const props = currentEntry.props as unknown as CommandPaletteProps;
       return <CommandPalette {...props} />;
     }
+    case 'help': {
+      const onClose = (): void => {
+        close();
+      };
+      const helpProps = currentEntry.props as {
+        entries?: Array<{
+          key: string;
+          description: string;
+          category: string;
+          condition: string | null;
+        }>;
+      };
+      return <HelpDialog entries={(helpProps.entries ?? []) as HelpEntry[]} onClose={onClose} />;
+    }
+    case 'theme': {
+      const handleThemeSelect = (themeName: string): void => {
+        close(themeName);
+      };
+      const handleThemeCancel = (): void => {
+        cancel();
+      };
+      return (
+        <ThemeDialog
+          currentTheme={theme.active}
+          onSelect={handleThemeSelect}
+          onCancel={handleThemeCancel}
+        />
+      );
+    }
+    case 'file-picker': {
+      const onSelectFiles = (paths: string[]): void => {
+        close(paths);
+      };
+      const onCancelPicker = (): void => {
+        cancel();
+      };
+      return (
+        <FilePicker rootDir={process.cwd()} onSelect={onSelectFiles} onCancel={onCancelPicker} />
+      );
+    }
+    case 'quit': {
+      const quitProps = currentEntry.props as { hasActiveSession?: boolean; tokenCount?: number };
+      const handleQuitChoice = (action: 'quit' | 'cancel' | 'save-and-quit'): void => {
+        if (action === 'cancel') {
+          cancel();
+        } else {
+          close(action);
+        }
+      };
+      return (
+        <QuitDialog
+          hasActiveSession={quitProps.hasActiveSession ?? false}
+          tokenCount={quitProps.tokenCount ?? 0}
+          onChoice={handleQuitChoice}
+        />
+      );
+    }
+    case 'arg-input': {
+      const argProps = currentEntry.props as {
+        title?: string;
+        fields?: ArgField[];
+      };
+      const handleArgSubmit = (vals: Record<string, string>): void => {
+        close(vals);
+      };
+      const handleArgCancel = (): void => {
+        cancel();
+      };
+      return (
+        <ArgDialog
+          title={argProps.title ?? 'Input'}
+          fields={(argProps.fields ?? []) as ArgField[]}
+          onSubmit={handleArgSubmit}
+          onCancel={handleArgCancel}
+        />
+      );
+    }
     default:
       return null;
   }
@@ -130,6 +216,10 @@ function AppLayout(): React.JSX.Element {
   const { sendMessage } = useStreamChat();
   const { pending: pendingAttachments } = useAttachments();
   const { handleCommand, commands } = useCommands();
+  const sidebar = useSidebar();
+  const { page } = usePage();
+  const logCollector = useLogCollector();
+  useFileChanges();
   useToolEvents();
   usePermission();
 
@@ -214,64 +304,40 @@ function AppLayout(): React.JSX.Element {
   const agentColor = theme.colors.agents[agent as AgentName] ?? theme.colors.primary;
 
   return (
-    <Box flexDirection="column" height={rows}>
-      {/* Header — height: 3 */}
-      <Box
-        height={3}
-        borderStyle={theme.borderStyle}
-        borderColor={theme.colors.border}
-        paddingX={1}
-      >
-        <Header
-          model={model}
+    <Box flexDirection="column" height={rows} backgroundColor={theme.colors.background}>
+      {/* Page routing */}
+      {page === 'chat' ? (
+        <ChatPage
+          messages={messages}
+          streamingText={chat.streamingText}
+          isStreaming={chat.isStreaming}
+          activeToolCalls={chat.activeToolCalls}
+          onToggleToolCall={chat.toggleToolCallExpansion}
           agent={agent}
           agentColor={agentColor}
-          sessionId={sessionId}
+          model={model}
           tokenCount={tokenCount}
-          autoRoute={false}
+          sessionId={sessionId}
+          cost={{ totalCost: cost.totalCost, currency: cost.currency }}
+          leaderActive={keybindState.leaderActive}
+          dialogIsOpen={dialogIsOpen}
+          onSubmit={handleSubmit}
+          commands={commands}
+          sidebar={sidebar}
         />
-      </Box>
-
-      {/* Dialog overlay replaces main content when a dialog is open */}
-      {dialogIsOpen ? (
-        <Box flexDirection="column" flexGrow={1}>
-          <DialogHost />
-        </Box>
       ) : (
-        <>
-          {/* Message history + streaming area */}
-          <MessageArea
-            messages={messages}
-            streamingText={chat.streamingText}
-            isStreaming={chat.isStreaming}
-            activeToolCalls={chat.activeToolCalls}
-            onToggleToolCall={chat.toggleToolCallExpansion}
-          />
-
-          {/* Input Box — flexShrink={0} prevents squeezing by flex algorithm */}
-          <Box flexShrink={0}>
-            <InputBox
-              agent={agent}
-              agentColor={agentColor}
-              disabled={chat.isStreaming}
-              onSubmit={handleSubmit}
-              isFocused={!keybindState.leaderActive}
-              commands={commands}
-            />
-          </Box>
-
-          {/* Status Bar — flexShrink={0} prevents squeezing by flex algorithm */}
-          <Box flexShrink={0}>
-            <StatusBar
-              agent={agent}
-              model={model}
-              cost={{ totalCost: cost.totalCost, currency: cost.currency }}
-              isStreaming={chat.isStreaming}
-              leaderActive={keybindState.leaderActive}
-            />
-          </Box>
-        </>
+        <LogsPage
+          entries={logCollector.entries}
+          agent={agent}
+          model={model}
+          cost={{ totalCost: cost.totalCost, currency: cost.currency }}
+          isStreaming={chat.isStreaming}
+          leaderActive={keybindState.leaderActive}
+        />
       )}
+
+      {/* Dialog overlay */}
+      {dialogIsOpen && <DialogHost />}
     </Box>
   );
 }
@@ -285,21 +351,25 @@ export function App({ model, autoRoute, sessionId }: AppProps): React.JSX.Elemen
 
   return (
     <ThemeProvider>
-      <SessionProvider
-        initialModel={model}
-        initialAutoRoute={autoRoute}
-        sessionId={resolvedSessionId}
-      >
-        <ChatProvider>
-          <AttachmentProvider>
-            <KeybindProvider>
-              <DialogProvider>
-                <AppLayout />
-              </DialogProvider>
-            </KeybindProvider>
-          </AttachmentProvider>
-        </ChatProvider>
-      </SessionProvider>
+      <PageProvider>
+        <SessionProvider
+          initialModel={model}
+          initialAutoRoute={autoRoute}
+          sessionId={resolvedSessionId}
+        >
+          <ChatProvider>
+            <AttachmentProvider>
+              <SidebarProvider>
+                <KeybindProvider>
+                  <DialogProvider>
+                    <AppLayout />
+                  </DialogProvider>
+                </KeybindProvider>
+              </SidebarProvider>
+            </AttachmentProvider>
+          </ChatProvider>
+        </SessionProvider>
+      </PageProvider>
     </ThemeProvider>
   );
 }

@@ -4,8 +4,8 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
+    "rootDir": "src",
     "outDir": "dist",
-    "baseUrl": ".",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "jsx": "react-jsx"

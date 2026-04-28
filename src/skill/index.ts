@@ -8,6 +8,7 @@ import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
+import { getGlobalPaths } from '../utils/global.js';
 
 // Skill definition schema
 export const SkillSchema = z.object({
@@ -135,6 +136,64 @@ export function loadSkillsFromDirectory(dirPath: string): Skill[] {
   }
 
   return skills;
+}
+
+/**
+ * Get skill directories in precedence order (project first, then global)
+ */
+export function skillDirectories(projectRoot: string): string[] {
+  const dirs: string[] = [];
+  const globalPaths = getGlobalPaths();
+
+  // Add project skills FIRST (higher precedence)
+  const projectSkillsDir = path.join(projectRoot, '.alexi', 'skills');
+  if (fs.existsSync(projectSkillsDir)) {
+    dirs.push(projectSkillsDir);
+  }
+
+  // Add global skills (lower precedence)
+  const globalSkillsDir = globalPaths.skills;
+  if (fs.existsSync(globalSkillsDir)) {
+    dirs.push(globalSkillsDir);
+  }
+
+  return dirs;
+}
+
+/**
+ * Built-in skills that cannot be removed
+ */
+const BUILTIN_SKILLS = new Set(['alexi-config', 'kilo-config']);
+
+/**
+ * Check if a skill is built-in
+ */
+export function isBuiltinSkill(skillName: string): boolean {
+  return BUILTIN_SKILLS.has(skillName);
+}
+
+/**
+ * Remove a skill by ID
+ */
+export function removeSkill(skillId: string): { success: boolean; error?: string } {
+  if (isBuiltinSkill(skillId)) {
+    return {
+      success: false,
+      error: `Cannot remove built-in skill: ${skillId}`,
+    };
+  }
+
+  const registry = getSkillRegistry();
+  const removed = registry.remove(skillId);
+
+  if (!removed) {
+    return {
+      success: false,
+      error: `Skill not found: ${skillId}`,
+    };
+  }
+
+  return { success: true };
 }
 
 /**

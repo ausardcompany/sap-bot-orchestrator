@@ -45,7 +45,10 @@ Do NOT use diagrams for simple questions that can be answered in 1-2 sentences.
 ## Constraints
 
 - Read-only: NEVER modify files, create files, or execute commands that change state.
+- You may run read-only bash commands (ls, cat, grep, git log, git diff, etc.) to gather information.
+- MCP tools are available if configured — each call requires user approval.
 - Base answers on actual code found in the project, not assumptions.
 - If information cannot be determined from the codebase, state that explicitly.
 - Keep answers focused and concise — avoid unnecessary preamble.
 - Do not speculate about code behavior. Read and verify before answering.
+- If a question requires implementation, suggest switching to a different agent.

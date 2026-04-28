@@ -20,6 +20,7 @@ export const AgentSchema = z.object({
   description: z.string(),
   mode: z.enum(['primary', 'subagent', 'all']).default('all'),
   systemPrompt: z.string(),
+  deprecated: z.boolean().optional(), // Mark agents as deprecated
   // Tool configuration
   tools: z.array(z.string()).optional(), // Tool IDs this agent can use
   disabledTools: z.array(z.string()).optional(), // Explicitly disabled tools
@@ -356,4 +357,76 @@ export function parseAgentMention(message: string): {
   }
 
   return { agentId: null, cleanMessage: message };
+}
+
+/**
+ * Read-only bash commands for the ask agent and plan mode.
+ * Unlike the default bash allowlist, unknown commands are DENIED (not "ask")
+ * because the ask agent must never modify the filesystem.
+ */
+const readOnlyBash: Record<string, 'allow' | 'ask' | 'deny'> = {
+  '*': 'deny',
+  // read-only / informational
+  'cat *': 'allow',
+  'head *': 'allow',
+  'tail *': 'allow',
+  'less *': 'allow',
+  'ls *': 'allow',
+  'tree *': 'allow',
+  'pwd *': 'allow',
+  'echo *': 'allow',
+  'wc *': 'allow',
+  'which *': 'allow',
+  'type *': 'allow',
+  'file *': 'allow',
+  'diff *': 'allow',
+  'du *': 'allow',
+  'df *': 'allow',
+  'date *': 'allow',
+  'uname *': 'allow',
+  'whoami *': 'allow',
+  'printenv *': 'allow',
+  'man *': 'allow',
+  // text processing (stdout only, no file modification)
+  'grep *': 'allow',
+  'rg *': 'allow',
+  'ag *': 'allow',
+  'sort *': 'allow',
+  'uniq *': 'allow',
+  'cut *': 'allow',
+  'awk *': 'allow',
+  'sed *': 'allow',
+  'tr *': 'allow',
+  'jq *': 'allow',
+  'yq *': 'allow',
+  // git read-only commands
+  'git status *': 'allow',
+  'git log *': 'allow',
+  'git diff *': 'allow',
+  'git show *': 'allow',
+  'git branch --list *': 'allow',
+  'git tag --list *': 'allow',
+  'git remote -v *': 'allow',
+  'git rev-parse *': 'allow',
+  'git ls-files *': 'allow',
+  'git ls-tree *': 'allow',
+  'git blame *': 'allow',
+  'git shortlog *': 'allow',
+  // explicitly deny git write operations
+  'git add *': 'deny',
+  'git commit *': 'deny',
+  'git push *': 'deny',
+  'git pull *': 'deny',
+  'git checkout *': 'deny',
+  'git merge *': 'deny',
+  'git rebase *': 'deny',
+  'git reset *': 'deny',
+  'git stash *': 'deny',
+};
+
+/**
+ * Get bash rules for the ask agent (read-only commands only)
+ */
+export function getAskAgentBashRules(): Record<string, 'allow' | 'ask' | 'deny'> {
+  return readOnlyBash;
 }

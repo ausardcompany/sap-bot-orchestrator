@@ -4,9 +4,12 @@ import { useSession } from '../context/SessionContext.js';
 import { useKeybind } from '../context/KeybindContext.js';
 import { useDialog } from '../context/DialogContext.js';
 import { useChat } from '../context/ChatContext.js';
+import { useSidebar } from '../context/SidebarContext.js';
+import { usePage } from '../context/PageContext.js';
 import type { ModelGroup } from '../dialogs/ModelPicker.js';
 import type { SlashCommand } from './useCommands.js';
 import type { CommandEntry } from '../components/CommandPalette.js';
+import { getHelpEntries } from '../utils/helpEntries.js';
 
 // ---------------------------------------------------------------------------
 // Static model groups (same constant as in useCommands.ts)
@@ -71,6 +74,8 @@ export function useKeyboard(options: UseKeyboardOptions): void {
   const { state: keybindState, activateLeader, deactivateLeader } = useKeybind();
   const { open } = useDialog();
   const { isStreaming, abortController } = useChat();
+  const sidebar = useSidebar();
+  const { togglePage } = usePage();
 
   useInput((input, key) => {
     // Tab — cycle agents forward
@@ -110,12 +115,52 @@ export function useKeyboard(options: UseKeyboardOptions): void {
       return;
     }
 
-    // Ctrl+C — abort streaming if active, then exit
+    // Ctrl+J — toggle page (chat/logs)
+    if (key.ctrl && input === 'j') {
+      togglePage();
+      return;
+    }
+
+    // Ctrl+B — toggle sidebar
+    if (key.ctrl && input === 'b') {
+      sidebar.toggle();
+      return;
+    }
+
+    // Ctrl+C — abort streaming, or show quit dialog if messages exist
     if (key.ctrl && input === 'c') {
       if (isStreaming && abortController !== null) {
         abortController.abort();
+        return;
       }
-      onExit();
+      // Open quit dialog (caught if dialog system isn't available)
+      open('quit', {}).catch(() => {
+        // Fall back to immediate exit
+        onExit();
+      });
+      return;
+    }
+
+    // Ctrl+D — alternative quit
+    if (key.ctrl && input === 'd') {
+      open('quit', {}).catch(() => {
+        onExit();
+      });
+      return;
+    }
+
+    // Escape — abort streaming (not just Ctrl+C)
+    if (key.escape && !keybindState.leaderActive) {
+      if (isStreaming && abortController !== null) {
+        abortController.abort();
+      }
+      return;
+    }
+
+    // ? — open help dialog
+    if (input === '?' && !keybindState.leaderActive) {
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      open('help', { entries: getHelpEntries() }).catch(() => {});
       return;
     }
 
@@ -141,10 +186,45 @@ export function useKeyboard(options: UseKeyboardOptions): void {
           deactivateLeader();
           return;
 
+        case 't':
+          // eslint-disable-next-line @typescript-eslint/no-empty-function
+          open('theme', {}).catch(() => {});
+          deactivateLeader();
+          return;
+
+        case 'f':
+          // eslint-disable-next-line @typescript-eslint/no-empty-function
+          open('file-picker', {}).catch(() => {});
+          deactivateLeader();
+          return;
+
         case 's':
           open('session-list', {}).catch(() => {
             // user cancelled — no-op
           });
+          deactivateLeader();
+          return;
+
+        case 'l':
+          togglePage();
+          deactivateLeader();
+          return;
+
+        case 'b':
+          sidebar.toggle();
+          deactivateLeader();
+          return;
+
+        case 'q':
+          open('quit', {}).catch(() => {
+            onExit();
+          });
+          deactivateLeader();
+          return;
+
+        case 'h':
+          // eslint-disable-next-line @typescript-eslint/no-empty-function
+          open('help', { entries: getHelpEntries() }).catch(() => {});
           deactivateLeader();
           return;
 

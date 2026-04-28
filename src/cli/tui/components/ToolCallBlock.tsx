@@ -15,27 +15,46 @@ export interface ToolCallBlockProps {
   isExpanded: boolean;
   onToggle: () => void;
   diff: DiffData | null;
+  /** Duration in ms (set on completion) */
+  duration?: number;
 }
 
-const MAX_PARAMS_PREVIEW_LENGTH = 60;
 const MAX_OUTPUT_LINES = 20;
 const TRUNCATED_OUTPUT_LINES = 15;
 
-/**
- * Build a compact params preview string, truncated to 60 characters.
- */
-function formatParamsPreview(params: Record<string, unknown>): string {
-  const raw = JSON.stringify(params);
-  if (raw.length > MAX_PARAMS_PREVIEW_LENGTH) {
-    return raw.slice(0, MAX_PARAMS_PREVIEW_LENGTH) + '\u2026';
-  }
-  return raw;
-}
+/** Tool-specific icons */
+const TOOL_ICONS: Record<string, string> = {
+  read: '📄',
+  write: '✏️',
+  edit: '✏️',
+  grep: '🔍',
+  glob: '🔍',
+  bash: '⚡',
+  fetch: '🌐',
+};
 
 /**
- * Truncate output text to the first 15 lines if it exceeds 20 lines,
- * appending a count of remaining lines.
+ * Format tool params as key-value pairs, not raw JSON.
  */
+function formatParamsPreview(params: Record<string, unknown>): string {
+  const entries = Object.entries(params);
+  if (entries.length === 0) {
+    return '';
+  }
+  // Show the most relevant param (usually filePath, command, pattern, etc.)
+  const keyParams = ['filePath', 'path', 'file', 'command', 'pattern', 'query'];
+  for (const key of keyParams) {
+    if (key in params) {
+      const val = String(params[key]);
+      return val.length > 50 ? `${key}: ${val.slice(0, 50)}…` : `${key}: ${val}`;
+    }
+  }
+  // Fallback: first param
+  const [key, val] = entries[0];
+  const valStr = String(val);
+  return valStr.length > 50 ? `${key}: ${valStr.slice(0, 50)}…` : `${key}: ${valStr}`;
+}
+
 function truncateOutput(text: string): { text: string; truncated: boolean; remaining: number } {
   const lines = text.split('\n');
   if (lines.length > MAX_OUTPUT_LINES) {
@@ -49,10 +68,13 @@ function truncateOutput(text: string): { text: string; truncated: boolean; remai
   return { text, truncated: false, remaining: 0 };
 }
 
-/**
- * ToolCallBlock — renders a collapsible tool call with status indicator,
- * parameters preview, output, and optional diff view.
- */
+function formatDuration(ms: number): string {
+  if (ms >= 1000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+  return `${ms}ms`;
+}
+
 export function ToolCallBlock({
   toolName,
   params,
@@ -62,15 +84,18 @@ export function ToolCallBlock({
   isExpanded,
   onToggle,
   diff,
+  duration,
 }: ToolCallBlockProps): React.JSX.Element {
-  // onToggle is available for future interactive expansion (e.g. click/key binding)
   void onToggle;
   const { theme } = useTheme();
   const { colors } = theme;
 
   const paramsPreview = formatParamsPreview(params);
+  const icon = TOOL_ICONS[toolName] ?? '🔧';
 
-  // --- Header ---
+  // Auto-expand on failure
+  const shouldShow = isExpanded || status === 'failed';
+
   const renderStatusIcon = (): React.JSX.Element => {
     if (status === 'pending') {
       return <Text color={colors.dimText}>○ </Text>;
@@ -81,7 +106,6 @@ export function ToolCallBlock({
     if (status === 'completed') {
       return <Text color={colors.success}>✓ </Text>;
     }
-    // failed
     return <Text color={colors.error}>✗ </Text>;
   };
 
@@ -93,15 +117,14 @@ export function ToolCallBlock({
       return <Text color={colors.warning}> running…</Text>;
     }
     if (status === 'completed') {
-      return <Text color={colors.dimText}> done</Text>;
+      const dur = duration !== undefined ? ` ${formatDuration(duration)}` : '';
+      return <Text color={colors.dimText}> done{dur}</Text>;
     }
-    // failed
     return <Text color={colors.error}> failed</Text>;
   };
 
-  // --- Body ---
   const renderBody = (): React.JSX.Element | null => {
-    if (!isExpanded) {
+    if (!shouldShow) {
       return null;
     }
 
@@ -114,7 +137,6 @@ export function ToolCallBlock({
     } else if (toolName === 'bash' && output !== null) {
       const command = typeof params.command === 'string' ? params.command : '';
       const { text: truncatedText, truncated, remaining } = truncateOutput(output);
-
       bodyContent = (
         <Box flexDirection="column">
           <Text color={colors.toolOutput}>
@@ -127,7 +149,6 @@ export function ToolCallBlock({
       );
     } else if (output !== null) {
       const { text: truncatedText, truncated, remaining } = truncateOutput(output);
-
       bodyContent = (
         <Box flexDirection="column">
           <Text color={colors.toolOutput}>{truncatedText}</Text>
@@ -144,7 +165,7 @@ export function ToolCallBlock({
       <Box
         borderLeft
         borderStyle="single"
-        borderColor={colors.dimText}
+        borderColor={colors.borderDim}
         paddingLeft={1}
         borderTop={false}
         borderRight={false}
@@ -157,17 +178,15 @@ export function ToolCallBlock({
 
   return (
     <Box flexDirection="column" paddingLeft={2}>
-      {/* Header line */}
       <Box>
         {renderStatusIcon()}
+        <Text>{icon} </Text>
         <Text color={colors.toolHeader} bold>
           {toolName}
         </Text>
-        <Text color={colors.dimText}> ({paramsPreview})</Text>
+        {paramsPreview && <Text color={colors.dimText}> {paramsPreview}</Text>}
         {renderStatusLabel()}
       </Box>
-
-      {/* Body */}
       {renderBody()}
     </Box>
   );

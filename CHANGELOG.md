@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Updated write tool logic to improve code formatting and readability in BOM handling for UTF-8 files. The conditional that strips a leading BOM from content is now formatted for clarity and robustness.
+
+
+### Fixed
+- Resolved ESLint naming conflicts in tool schema definitions by using private schema constants with underscore prefixes.
+
+
 ## [0.3.1] - 2026-03-21
 
 ### Added
@@ -206,7 +214,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Resolved relative path handling in write/edit tools for CI permission checks
-- Fixed zero-width space characters in GitHub workflow expressions
+- Fixed zero-width characters in GitHub workflow expressions
 - Corrected file path specifications in documentation workflow scope
 - Removed .env file from git tracking to prevent accidental credential exposure
 
