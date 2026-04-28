@@ -2,13 +2,16 @@ name: CI Auto-Fix
 
 on:
   workflow_run:
-    workflows: ['CI']
+    workflows:
+      - 'CI'
+      - 'Auto-Implement Features'
+      - 'Documentation Update'
+      - 'Security Scanning'
     types: [completed]
-    branches: ['auto/**', 'dependabot/**', 'fix/**']
   workflow_dispatch:
     inputs:
       run_id:
-        description: 'CI workflow run ID to fix'
+        description: 'Failed workflow run ID to fix'
         required: true
         type: number
       pr_branch:
@@ -30,10 +33,13 @@ jobs:
     name: Auto-Fix CI Failures
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # For workflow_run: only run when CI actually failed
+    # Run when any monitored workflow fails (but never on master to avoid noise)
+    # Also skip if the triggering workflow is CI Auto-Fix itself (prevent recursion)
     if: >
       github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'failure'
+      (github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.name != 'CI Auto-Fix' &&
+       github.event.workflow_run.head_branch != 'master')
 
     steps:
       # ─── Step 1: Determine branch and run ID ─────────────────────────────────
