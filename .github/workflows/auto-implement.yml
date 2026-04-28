@@ -2,8 +2,8 @@ name: Auto-Implement Features
 
 on:
   schedule:
-    # Run every 4 hours
-    - cron: '0 */4 * * *'
+    # Run every 2 hours
+    - cron: '0 */2 * * *'
   workflow_dispatch:
     inputs:
       issue_number:
