@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import { AgentSwitched } from '../bus/index.js';
 import { getAgentPrompt } from './system.js';
+import { loadAllCustomAgents } from './customAgentLoader.js';
 
 // Agent mode - determines when agent is available
 export type AgentMode = 'primary' | 'subagent' | 'all';
@@ -238,6 +239,46 @@ class AgentRegistry {
     this.aliasMap.delete(agent.id.toLowerCase());
 
     return true;
+  }
+
+  /**
+   * Load custom agents from user-global and project-local directories.
+   * Custom agents are registered after built-in agents; duplicates overwrite.
+   * Returns the number of custom agents loaded.
+   */
+  loadCustomAgents(workdir?: string): number {
+    const customAgents = loadAllCustomAgents(workdir);
+    let count = 0;
+
+    for (const config of customAgents) {
+      try {
+        this.register(config);
+        count++;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        // eslint-disable-next-line no-console
+        console.warn(`[agent-registry] Failed to register custom agent '${config.id}': ${message}`);
+      }
+    }
+
+    return count;
+  }
+
+  /**
+   * List only custom (non-built-in) agents.
+   */
+  listCustom(): Agent[] {
+    const builtInIds = new Set(builtInAgents.map((a) => a.id));
+    return this.list().filter((a) => !builtInIds.has(a.id));
+  }
+
+  /**
+   * Check if an agent is a custom (non-built-in) agent.
+   */
+  isCustomAgent(idOrAlias: string): boolean {
+    const agent = this.get(idOrAlias);
+    if (!agent) return false;
+    return !builtInAgents.some((a) => a.id === agent.id);
   }
 
   /**
