@@ -4,13 +4,16 @@ on:
   workflow_run:
     workflows: ['Repository Sync']
     types: [completed]
+  schedule:
+    # Run daily at 7:00 UTC (1 hour after repo-sync)
+    - cron: '0 7 * * *'
   workflow_dispatch:
     inputs:
       max_issues:
         description: 'Maximum number of issues to create'
         required: false
         type: number
-        default: 5
+        default: 10
       min_priority:
         description: 'Minimum priority to create issues for'
         required: false
@@ -104,39 +107,72 @@ jobs:
         id: issues
         env:
           GH_TOKEN: ${​{ secrets.GITHUB_TOKEN }}
-          MAX_ISSUES: ${​{ inputs.max_issues || '5' }}
+          MAX_ISSUES: ${​{ inputs.max_issues || '10' }}
           MIN_PRIORITY: ${​{ inputs.min_priority || 'high' }}
           DRY_RUN: ${​{ inputs.dry_run || 'false' }}
         run: |
           node --input-type=module <<'NODE_EOF'
           import { FeatureAnalyzer } from './dist/sync/analyzer.js';
+          import { SyncManager } from './dist/sync/index.js';
           import { readFileSync, appendFileSync } from 'fs';
           import { execSync } from 'child_process';
 
-          const MAX_ISSUES = parseInt(process.env.MAX_ISSUES || '5', 10);
+          const MAX_ISSUES = parseInt(process.env.MAX_ISSUES || '10', 10);
           const MIN_PRIORITY = process.env.MIN_PRIORITY || 'high';
           const DRY_RUN = process.env.DRY_RUN === 'true';
 
           const priorityOrder = { high: 3, medium: 2, low: 1 };
+          const effortOrder = { small: 3, medium: 2, large: 1 };
           const minPriorityValue = priorityOrder[MIN_PRIORITY] || 3;
 
+          // Categories safe for auto-implementation by Kilo CLI
+          const ALLOWED_CATEGORIES = ['tool', 'provider', 'command', 'mcp', 'hook', 'skill', 'config'];
+
           console.log(`Config: max=${MAX_ISSUES}, minPriority=${MIN_PRIORITY}, dryRun=${DRY_RUN}`);
+          console.log(`Allowed categories: ${ALLOWED_CATEGORIES.join(', ')}`);
 
-          // Re-run analysis to get structured data
+          // Run sync to get real changes from upstream repos
+          const syncManager = new SyncManager({ githubToken: process.env.GH_TOKEN });
+          let report;
+          try {
+            report = await syncManager.sync({ force: false });
+            console.log(`Sync completed: ${report.newChangesFound} new changes from ${report.repositoriesChecked} repos`);
+          } catch (err) {
+            console.warn(`Sync failed (${err.message}), falling back to static analysis`);
+            report = { changes: [] };
+          }
+
           const analyzer = new FeatureAnalyzer();
-          const analysis = analyzer.analyzeChanges([]);
+          const analysis = analyzer.analyzeChanges(report.changes);
 
-          // Filter gaps by priority
+          // Filter gaps by priority, category whitelist, and missing status
           const eligibleGaps = analysis.featureGaps
             .filter(gap => {
               const gapPriority = priorityOrder[gap.priority] || 0;
-              return gapPriority >= minPriorityValue && gap.missingInOur;
+              return gapPriority >= minPriorityValue
+                && gap.missingInOur
+                && ALLOWED_CATEGORIES.includes(gap.category);
             })
-            .sort((a, b) => (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0));
+            .sort((a, b) => {
+              // Small effort first (quick wins), then by priority
+              const effortDiff = (effortOrder[a.estimatedEffort] || 0) - (effortOrder[b.estimatedEffort] || 0);
+              if (effortDiff !== 0) return effortDiff;
+              return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
+            });
 
-          console.log(`Found ${eligibleGaps.length} eligible feature gaps (priority >= ${MIN_PRIORITY})`);
+          // Cap large-effort issues at 3 per run
+          let largeCount = 0;
+          const cappedGaps = eligibleGaps.filter(gap => {
+            if (gap.estimatedEffort === 'large') {
+              largeCount++;
+              return largeCount <= 3;
+            }
+            return true;
+          });
 
-          if (eligibleGaps.length === 0) {
+          console.log(`Found ${eligibleGaps.length} eligible gaps, ${cappedGaps.length} after large-effort cap (priority >= ${MIN_PRIORITY})`);
+
+          if (cappedGaps.length === 0) {
             console.log('No feature gaps to create issues for.');
             appendFileSync(process.env.GITHUB_OUTPUT, 'created_count=0\n');
             process.exit(0);
@@ -158,7 +194,7 @@ jobs:
           let createdCount = 0;
           const results = [];
 
-          for (const gap of eligibleGaps.slice(0, MAX_ISSUES)) {
+          for (const gap of cappedGaps.slice(0, MAX_ISSUES)) {
             const issueTitle = `[Feature Gap] ${gap.feature} (${gap.category})`;
 
             // Skip if similar issue already exists
