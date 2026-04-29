@@ -183,6 +183,36 @@ export function setConfigDefaultModel(modelId: string): void {
   setConfigValue('defaultModel', modelId);
 }
 
+/**
+ * Get tool output truncation configuration
+ */
+export function getConfigTruncation(): {
+  maxLines?: number;
+  maxBytes?: number;
+  toolSpecific?: Record<string, { maxLines?: number; maxBytes?: number }>;
+} | undefined {
+  const value = getConfigValue('truncation');
+  if (typeof value === 'object' && value !== null) {
+    return value as {
+      maxLines?: number;
+      maxBytes?: number;
+      toolSpecific?: Record<string, { maxLines?: number; maxBytes?: number }>;
+    };
+  }
+  return undefined;
+}
+
+/**
+ * Set tool output truncation configuration
+ */
+export function setConfigTruncation(config: {
+  maxLines?: number;
+  maxBytes?: number;
+  toolSpecific?: Record<string, { maxLines?: number; maxBytes?: number }>;
+}): void {
+  setConfigValue('truncation', config);
+}
+
 // ============ Batch update with options ============
 
 export interface UpdateGlobalOptions {

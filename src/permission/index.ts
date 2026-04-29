@@ -17,6 +17,7 @@ import { matchPattern, matchPatterns, matchCommand } from './wildcard.js';
 import {
   PermissionRequested,
   PermissionResponse,
+  PermissionCleared,
   waitForEvent,
   defineEvent,
 } from '../bus/index.js';
@@ -110,7 +111,8 @@ export interface PermissionResult {
 export class PermissionManager {
   private rules: PermissionRule[] = [];
   private sessionGrants: Map<string, boolean> = new Map();
-  private askTimeoutMs: number = 60000; // 1 minute timeout for ask prompts
+  private askTimeoutMs: number = 300000; // 5 minute timeout for ask prompts (increased from 1 min)
+  private pendingPermissions: Set<string> = new Set(); // Track pending permission requests
 
   // Doom loop detection
   private recentOperations: Map<string, OperationAttempt> = new Map();
@@ -495,6 +497,7 @@ export class PermissionManager {
 
   /**
    * Interactive ask flow - publishes event and waits for response
+   * Enhanced with timeout cleanup to prevent stale permission prompts
    */
   private async askUser(ctx: PermissionContext): Promise<PermissionResult> {
     const requestId = nanoid();
@@ -506,6 +509,9 @@ export class PermissionManager {
 
     // For config edits, add metadata to disable "always allow" option
     const metadata = isConfigEdit ? ConfigProtection.getMetadata() : {};
+
+    // Track pending permission
+    this.pendingPermissions.add(requestId);
 
     // Publish permission request event
     PermissionRequested.publish({
@@ -519,12 +525,15 @@ export class PermissionManager {
     });
 
     try {
-      // Wait for response
+      // Wait for response with timeout
       const response = await waitForEvent(
         PermissionResponse,
         (r) => r.id === requestId,
         this.askTimeoutMs
       );
+
+      // Remove from pending
+      this.pendingPermissions.delete(requestId);
 
       // Remember for session if requested
       if (response.remember) {
@@ -545,9 +554,20 @@ export class PermissionManager {
         decision: response.granted ? 'allow' : 'deny',
         granted: response.granted,
       };
-    } catch {
-      // Timeout - deny by default, record the attempt
+    } catch (err) {
+      // Timeout or error - clean up and deny by default
+      this.pendingPermissions.delete(requestId);
+
+      // Publish permission cleared event
+      PermissionCleared.publish({
+        id: requestId,
+        reason: 'timeout',
+        timestamp: Date.now(),
+      });
+
+      // Record the attempt
       this.recordOperationAttempt(ctx);
+
       return { decision: 'deny', granted: false };
     }
   }
@@ -573,6 +593,51 @@ export class PermissionManager {
    */
   clearSession(): void {
     this.sessionGrants.clear();
+    
+    // Clear any pending permissions when session ends
+    for (const requestId of this.pendingPermissions) {
+      PermissionCleared.publish({
+        id: requestId,
+        reason: 'session-end',
+        timestamp: Date.now(),
+      });
+    }
+    this.pendingPermissions.clear();
+  }
+
+  /**
+   * Get pending permission request IDs
+   */
+  getPendingPermissions(): string[] {
+    return Array.from(this.pendingPermissions);
+  }
+
+  /**
+   * Clear a specific pending permission (e.g., on manual cancel)
+   */
+  clearPendingPermission(requestId: string): void {
+    if (this.pendingPermissions.has(requestId)) {
+      this.pendingPermissions.delete(requestId);
+      PermissionCleared.publish({
+        id: requestId,
+        reason: 'manual',
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  /**
+   * Set ask timeout in milliseconds
+   */
+  setAskTimeout(timeoutMs: number): void {
+    this.askTimeoutMs = timeoutMs;
+  }
+
+  /**
+   * Get current ask timeout in milliseconds
+   */
+  getAskTimeout(): number {
+    return this.askTimeoutMs;
   }
 
   /**

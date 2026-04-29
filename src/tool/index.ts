@@ -67,29 +67,61 @@ export interface Tool<TParams extends z.ZodType, TResult> {
 const MAX_LINES = 2000;
 const MAX_BYTES = 51200; // 50KB
 
+// Truncation configuration interface
+export interface TruncationConfig {
+  maxLines?: number;
+  maxBytes?: number;
+  toolSpecific?: Record<string, { maxLines?: number; maxBytes?: number }>;
+}
+
+/**
+ * Get truncation limits for a specific tool
+ */
+function getTruncationLimits(
+  toolName?: string,
+  config?: TruncationConfig
+): { maxLines: number; maxBytes: number } {
+  let maxLines = config?.maxLines ?? MAX_LINES;
+  let maxBytes = config?.maxBytes ?? MAX_BYTES;
+
+  // Apply tool-specific overrides if available
+  if (toolName && config?.toolSpecific?.[toolName]) {
+    const toolConfig = config.toolSpecific[toolName];
+    maxLines = toolConfig.maxLines ?? maxLines;
+    maxBytes = toolConfig.maxBytes ?? maxBytes;
+  }
+
+  return { maxLines, maxBytes };
+}
+
 /**
  * Truncate output if it exceeds limits
  */
-function truncateOutput(output: string): { content: string; truncated: boolean } {
+function truncateOutput(
+  output: string,
+  toolName?: string,
+  config?: TruncationConfig
+): { content: string; truncated: boolean } {
+  const { maxLines, maxBytes } = getTruncationLimits(toolName, config);
   const lines = output.split('\n');
   const bytes = Buffer.byteLength(output, 'utf-8');
 
-  if (lines.length <= MAX_LINES && bytes <= MAX_BYTES) {
+  if (lines.length <= maxLines && bytes <= maxBytes) {
     return { content: output, truncated: false };
   }
 
   // Truncate by lines first
-  const truncatedLines = lines.slice(0, MAX_LINES);
+  const truncatedLines = lines.slice(0, maxLines);
   let result = truncatedLines.join('\n');
 
   // Then check bytes
-  if (Buffer.byteLength(result, 'utf-8') > MAX_BYTES) {
+  if (Buffer.byteLength(result, 'utf-8') > maxBytes) {
     // Binary search for the right length
     let left = 0;
     let right = result.length;
     while (left < right) {
       const mid = Math.floor((left + right + 1) / 2);
-      if (Buffer.byteLength(result.slice(0, mid), 'utf-8') <= MAX_BYTES) {
+      if (Buffer.byteLength(result.slice(0, mid), 'utf-8') <= maxBytes) {
         left = mid;
       } else {
         right = mid - 1;
@@ -108,10 +140,15 @@ const TOOL_OUTPUT_DIR = path.join(os.homedir(), '.alexi', 'tool-output');
  * Persist large tool output to disk so truncated data is recoverable.
  * Returns the file path if persisted, or null if output was within limits.
  */
-async function persistLargeOutput(output: string, toolName: string): Promise<string | null> {
+async function persistLargeOutput(
+  output: string,
+  toolName: string,
+  config?: TruncationConfig
+): Promise<string | null> {
+  const { maxLines, maxBytes } = getTruncationLimits(toolName, config);
   const lines = output.split('\n');
   const bytes = Buffer.byteLength(output, 'utf-8');
-  if (lines.length <= MAX_LINES && bytes <= MAX_BYTES) {
+  if (lines.length <= maxLines && bytes <= maxBytes) {
     return null;
   }
 
@@ -444,6 +481,7 @@ export function getAllToolSchemas(): Array<{
 // Re-export for convenience
 export {
   truncateOutput,
+  getTruncationLimits,
   MAX_LINES,
   MAX_BYTES,
   persistLargeOutput,
