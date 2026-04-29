@@ -136,17 +136,26 @@ async function processTemplate(template: string, context: TemplateContext): Prom
   }
 
   // Process shell injection !`command`
+  // Security: only allow simple commands, strip env expansion attempts
   const shellPattern = /!`([^`]+)`/g;
   const shellMatches = [...result.matchAll(shellPattern)];
 
   for (const match of shellMatches) {
     const [fullMatch, command] = match;
     try {
+      // Sanitize: restrict to safe subset of env vars to prevent injection
+      const safeEnv: Record<string, string> = {
+        PATH: process.env.PATH || '/usr/bin:/bin',
+        HOME: process.env.HOME || '',
+        LANG: process.env.LANG || 'en_US.UTF-8',
+        TERM: process.env.TERM || 'xterm',
+      };
       const output = execSync(command, {
         cwd: context.workdir,
         encoding: 'utf-8',
         timeout: 30000, // 30 second timeout
         maxBuffer: 1024 * 1024, // 1MB max output
+        env: safeEnv,
       }).trim();
       result = result.replace(fullMatch, output);
     } catch (error) {

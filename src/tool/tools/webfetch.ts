@@ -138,11 +138,16 @@ Usage:
  * Simple HTML to text/markdown conversion
  */
 function htmlToText(html: string, markdown: boolean): string {
-  // Remove script and style tags
-  let text = html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '');
+  // Remove script, style, and noscript tags (loop until stable to handle nested cases)
+  let text = html;
+  let prev = '';
+  while (prev !== text) {
+    prev = text;
+    text = text
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, '');
+  }
 
   // Convert common tags
   if (markdown) {
@@ -174,17 +179,21 @@ function htmlToText(html: string, markdown: boolean): string {
   text = text.replace(/<\/p>/gi, '\n\n');
   text = text.replace(/<p[^>]*>/gi, '');
 
-  // Remove remaining tags
-  text = text.replace(/<[^>]+>/g, '');
+  // Remove remaining tags (loop until stable to handle malformed/nested markup)
+  prev = '';
+  while (prev !== text) {
+    prev = text;
+    text = text.replace(/<[^>]+>/g, '');
+  }
 
-  // Decode entities
+  // Decode entities (order matters: &amp; must be last to avoid double-decoding)
   text = text
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
 
   // Clean up whitespace
   text = text

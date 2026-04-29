@@ -6,6 +6,7 @@
  */
 
 import { execSync } from 'child_process';
+import fs from 'fs';
 import { RelevantChange, SyncReport } from './index.js';
 import { AnalysisResult, Recommendation, FeatureGap } from './analyzer.js';
 
@@ -304,11 +305,15 @@ export class PRGenerator {
       // Push branch
       execSync(`git push -u origin ${template.branch}`, { stdio: 'inherit' });
 
-      // Create PR
+      // Create PR (use temp file for body to avoid shell injection)
       const labelsArg = template.labels.map((l) => `--label "${l}"`).join(' ');
-      const prCommand = `gh pr create --title "${template.title}" --body "${template.body.replace(/"/g, '\\"')}" ${labelsArg} --base ${this.baseBranch}`;
+      const tmpBodyFile = `/tmp/pr-body-${Date.now()}.md`;
+      fs.writeFileSync(tmpBodyFile, template.body);
+      const safeTitle = template.title.replace(/["`$\\]/g, '');
+      const prCommand = `gh pr create --title "${safeTitle}" --body-file "${tmpBodyFile}" ${labelsArg} --base ${this.baseBranch}`;
 
       const result = execSync(prCommand, { encoding: 'utf-8' });
+      fs.unlinkSync(tmpBodyFile);
       const prUrl = result.trim();
 
       // Return to base branch
@@ -351,10 +356,15 @@ export class PRGenerator {
     }
 
     try {
+      // Use temp file for body to avoid shell injection
       const labelsArg = template.labels.map((l) => `--label "${l}"`).join(' ');
-      const issueCommand = `gh issue create --title "${template.title}" --body "${template.body.replace(/"/g, '\\"')}" ${labelsArg}`;
+      const tmpBodyFile = `/tmp/issue-body-${Date.now()}.md`;
+      fs.writeFileSync(tmpBodyFile, template.body);
+      const safeTitle = template.title.replace(/["`$\\]/g, '');
+      const issueCommand = `gh issue create --title "${safeTitle}" --body-file "${tmpBodyFile}" ${labelsArg}`;
 
       const result = execSync(issueCommand, { encoding: 'utf-8' });
+      fs.unlinkSync(tmpBodyFile);
       const issueUrl = result.trim();
 
       return {

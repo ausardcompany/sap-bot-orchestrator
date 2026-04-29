@@ -361,9 +361,11 @@ export class ProfileManager {
 
     // Add env vars
     for (const [key, value] of Object.entries(profile.environment)) {
-      // Quote values that contain special characters
+      // Quote values that contain special characters (escape backslashes first, then quotes)
       const needsQuotes = value.includes(' ') || value.includes('#') || value.includes('\n');
-      const formattedValue = needsQuotes ? `"${value.replace(/"/g, '\\"')}"` : value;
+      const formattedValue = needsQuotes
+        ? `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+        : value;
       lines.push(`${key}=${formattedValue}`);
     }
 
