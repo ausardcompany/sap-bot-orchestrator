@@ -353,36 +353,38 @@ jobs:
             STATUS_TEXT="Some checks need attention"
           fi
 
+          # Write PR body to file to avoid YAML heredoc parsing issues
+          cat > /tmp/pr-body.md <<PRBODY
+          ## Summary
+
+          Automated implementation of #${ISSUE_NUMBER} by **Kilo CLI** using SAP AI Core.
+
+          ## Checks ${STATUS_EMOJI}
+
+          ${STATUS_TEXT}
+
+          ${VERIFY_RESULTS}
+
+          ## Changes
+
+          - **Files changed**: ${CHANGES_COUNT}
+          - **Branch**: \`${BRANCH}\`
+          - **Model**: \`sap-ai-core/anthropic--claude-4.6-opus\`
+
+          ## Review Checklist
+
+          - [ ] Code changes match the issue requirements
+          - [ ] Tests cover the new functionality
+          - [ ] No unintended side effects
+          - [ ] Documentation updated if needed
+
+          ---
+          Implemented by [Kilo CLI](https://kilo.ai) with SAP AI Core · Closes #${ISSUE_NUMBER}
+          PRBODY
+
           PR_URL=$(gh pr create \
             --title "feat: ${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
-            --body "$(cat <<EOF
-## Summary
-
-Automated implementation of #${ISSUE_NUMBER} by **Kilo CLI** using SAP AI Core.
-
-## Checks ${STATUS_EMOJI}
-
-${STATUS_TEXT}
-
-${VERIFY_RESULTS}
-
-## Changes
-
-- **Files changed**: ${CHANGES_COUNT}
-- **Branch**: \`${BRANCH}\`
-- **Model**: \`sap-ai-core/anthropic--claude-4.6-opus\`
-
-## Review Checklist
-
-- [ ] Code changes match the issue requirements
-- [ ] Tests cover the new functionality
-- [ ] No unintended side effects
-- [ ] Documentation updated if needed
-
----
-Implemented by [Kilo CLI](https://kilo.ai) with SAP AI Core · Closes #${ISSUE_NUMBER}
-EOF
-)" \
+            --body-file /tmp/pr-body.md \
             --base master \
             --head "$BRANCH" \
             --label "auto-implemented" \
