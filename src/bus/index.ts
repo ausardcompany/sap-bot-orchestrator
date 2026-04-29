@@ -188,6 +188,15 @@ export const PermissionResponse = defineEvent(
   })
 );
 
+export const PermissionCleared = defineEvent(
+  'permission.cleared',
+  z.object({
+    id: z.string(),
+    reason: z.enum(['timeout', 'manual', 'session-end']),
+    timestamp: z.number(),
+  })
+);
+
 // Agent events
 export const AgentSwitched = defineEvent(
   'agent.switched',
