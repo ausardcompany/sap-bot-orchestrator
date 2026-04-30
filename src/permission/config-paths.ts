@@ -39,6 +39,41 @@ function excluded(remainder: string): boolean {
   return EXCLUDED_SUBDIRS.some((sub) => remainder.startsWith(sub));
 }
 
+/**
+ * Windows path handling: Generate all possible path variants for matching.
+ * Handles MSYS-style paths (e.g., /c/Users) and Windows paths (e.g., C:\Users).
+ */
+function expandWindowsPaths(p: string): string[] {
+  if (process.platform !== 'win32') {
+    return [path.resolve(p)];
+  }
+
+  const expand = (value: string) => {
+    const full = path.posix.normalize(value.replaceAll('\\', '/')).toLowerCase();
+    const msys = full.replace(/^\/([a-z])(?=\/)/, '$1:');
+    return [full, full.replace(/^[a-z]:/, ''), msys, msys.replace(/^[a-z]:/, '')];
+  };
+
+  return Array.from(new Set([...expand(p), ...expand(path.resolve(p))]));
+}
+
+/**
+ * Check if path matches config directory patterns using Windows fallback.
+ * Returns true if the path ends with or contains a config directory pattern.
+ */
+function matchesConfigPattern(normalized: string): boolean {
+  if (process.platform !== 'win32') {
+    return false;
+  }
+
+  return (
+    normalized.endsWith('/config/alexi') ||
+    normalized.includes('/config/alexi/') ||
+    normalized.endsWith('/.config/alexi') ||
+    normalized.includes('/.config/alexi/')
+  );
+}
+
 /** Check if a project-relative path points to a config file or directory. */
 export function isRelative(pattern: string): boolean {
   const normalized = normalize(pattern);
@@ -83,6 +118,12 @@ export function isAbsolute(absolutePath: string, projectRoot: string): boolean {
     if (normalized.startsWith(globalConfig)) {
       return true;
     }
+    
+    // Windows fallback: check if path matches config patterns
+    if (matchesConfigPattern(normalized)) {
+      return true;
+    }
+    
     return false;
   }
 

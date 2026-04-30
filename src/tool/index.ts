@@ -67,29 +67,41 @@ export interface Tool<TParams extends z.ZodType, TResult> {
 const MAX_LINES = 2000;
 const MAX_BYTES = 51200; // 50KB
 
+// Truncation options interface
+export interface TruncateOptions {
+  maxLines?: number;
+  maxBytes?: number;
+}
+
 /**
  * Truncate output if it exceeds limits
  */
-function truncateOutput(output: string): { content: string; truncated: boolean } {
+function truncateOutput(
+  output: string,
+  options?: TruncateOptions
+): { content: string; truncated: boolean } {
+  const maxLines = options?.maxLines ?? MAX_LINES;
+  const maxBytes = options?.maxBytes ?? MAX_BYTES;
+  
   const lines = output.split('\n');
   const bytes = Buffer.byteLength(output, 'utf-8');
 
-  if (lines.length <= MAX_LINES && bytes <= MAX_BYTES) {
+  if (lines.length <= maxLines && bytes <= maxBytes) {
     return { content: output, truncated: false };
   }
 
   // Truncate by lines first
-  const truncatedLines = lines.slice(0, MAX_LINES);
+  const truncatedLines = lines.slice(0, maxLines);
   let result = truncatedLines.join('\n');
 
   // Then check bytes
-  if (Buffer.byteLength(result, 'utf-8') > MAX_BYTES) {
+  if (Buffer.byteLength(result, 'utf-8') > maxBytes) {
     // Binary search for the right length
     let left = 0;
     let right = result.length;
     while (left < right) {
       const mid = Math.floor((left + right + 1) / 2);
-      if (Buffer.byteLength(result.slice(0, mid), 'utf-8') <= MAX_BYTES) {
+      if (Buffer.byteLength(result.slice(0, mid), 'utf-8') <= maxBytes) {
         left = mid;
       } else {
         right = mid - 1;
@@ -108,10 +120,17 @@ const TOOL_OUTPUT_DIR = path.join(os.homedir(), '.alexi', 'tool-output');
  * Persist large tool output to disk so truncated data is recoverable.
  * Returns the file path if persisted, or null if output was within limits.
  */
-async function persistLargeOutput(output: string, toolName: string): Promise<string | null> {
+async function persistLargeOutput(
+  output: string,
+  toolName: string,
+  options?: TruncateOptions
+): Promise<string | null> {
+  const maxLines = options?.maxLines ?? MAX_LINES;
+  const maxBytes = options?.maxBytes ?? MAX_BYTES;
+  
   const lines = output.split('\n');
   const bytes = Buffer.byteLength(output, 'utf-8');
-  if (lines.length <= MAX_LINES && bytes <= MAX_BYTES) {
+  if (lines.length <= maxLines && bytes <= maxBytes) {
     return null;
   }
 
