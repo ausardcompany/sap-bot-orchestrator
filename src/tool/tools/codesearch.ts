@@ -1,11 +1,10 @@
 /**
- * CodeSearch Tool - Smart code search combining symbol search and content search
- *
- * Provides semantic-aware code search that understands code structure:
- * - Search by symbol name (functions, classes, interfaces, types)
- * - Search by content with context
- * - Filter by symbol type
- * - Cross-reference definitions and usages
+ * CodeSearch Tool - DEPRECATED
+ * 
+ * This tool has been removed as it was broken upstream in kilocode/opencode.
+ * Use the grep tool for content search and definitions tool for symbol search instead.
+ * 
+ * @deprecated Use grep and definitions tools instead
  */
 
 import { z } from 'zod';
