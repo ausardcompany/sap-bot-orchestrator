@@ -1,5 +1,66 @@
 import path from 'path';
+import * as os from 'os';
+import * as fs from 'fs';
 import { getGlobalPaths } from '../utils/global.js';
+
+/**
+ * Get config directory path with platform-specific handling
+ */
+export function getConfigDir(): string {
+  const homeDir = os.homedir();
+
+  if (process.platform === 'win32') {
+    // Handle Windows-specific paths
+    const appData = process.env.APPDATA || path.join(homeDir, 'AppData', 'Roaming');
+    return path.join(appData, 'alexi');
+  }
+
+  // Unix-like systems
+  const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(homeDir, '.config');
+  return path.join(xdgConfig, 'alexi');
+}
+
+/**
+ * Get config file path
+ */
+export function getConfigPath(): string {
+  return path.join(getConfigDir(), 'config.json');
+}
+
+/**
+ * Normalize path with symlink resolution and Windows drive letter handling
+ */
+export function normalizePath(filePath: string): string {
+  let normalized = path.normalize(filePath);
+
+  // Resolve symlinks
+  try {
+    normalized = fs.realpathSync(normalized);
+  } catch {
+    // Path may not exist yet, use normalized version
+  }
+
+  // Handle Windows drive letter casing
+  if (process.platform === 'win32' && /^[a-zA-Z]:/.test(normalized)) {
+    normalized = normalized[0].toUpperCase() + normalized.slice(1);
+  }
+
+  return normalized;
+}
+
+/**
+ * Compare paths with platform-specific handling
+ */
+export function comparePaths(path1: string, path2: string): boolean {
+  const norm1 = normalizePath(path1);
+  const norm2 = normalizePath(path2);
+
+  if (process.platform === 'win32') {
+    return norm1.toLowerCase() === norm2.toLowerCase();
+  }
+
+  return norm1 === norm2;
+}
 
 /**
  * Config directory prefixes (relative paths, forward-slash normalized).
@@ -132,4 +193,8 @@ export const ConfigProtection = {
   isAbsolute,
   isRequest,
   getMetadata,
+  getConfigDir,
+  getConfigPath,
+  normalizePath,
+  comparePaths,
 };
