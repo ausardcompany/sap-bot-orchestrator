@@ -294,6 +294,7 @@ export class PermissionManager {
 
   /**
    * Handle external path access
+   * Enhanced to honor read-only allows for external directories
    */
   private handleExternalPath(ctx: PermissionContext): PermissionResult | null {
     // Only check for file-related actions
@@ -307,11 +308,38 @@ export class PermissionManager {
       // Publish external access event
       ExternalAccessAttempted.publish({
         path: ctx.resource,
-        allowed: this.allowExternalDirectories,
+        allowed: this.allowExternalDirectories || ctx.action === 'read',
         timestamp: Date.now(),
       });
 
+      // Check if there's an explicit rule for this external path
+      const explicitRule = this.rules.find((rule) => {
+        if (!rule.externalPaths) return false;
+        return this.matchRule(ctx, rule);
+      });
+
+      if (explicitRule) {
+        // Honor explicit rules for external paths
+        if (explicitRule.decision === 'allow') {
+          return { decision: 'allow', rule: explicitRule, granted: true };
+        }
+        if (explicitRule.decision === 'deny') {
+          return { decision: 'deny', rule: explicitRule, granted: false };
+        }
+        // Fall through to ask if decision is 'ask'
+        return null;
+      }
+
+      // If no explicit rule and external directories not globally allowed
       if (!this.allowExternalDirectories) {
+        // Allow read operations by default for external paths
+        if (ctx.action === 'read') {
+          return {
+            decision: 'allow',
+            granted: true,
+          };
+        }
+        // Deny write/execute operations on external paths
         return {
           decision: 'deny',
           granted: false,

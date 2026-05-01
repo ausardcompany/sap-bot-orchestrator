@@ -30,6 +30,7 @@ import { batchTool } from './batch.js';
 import { storeMemoryTool, recallMemoryTool } from './memory.js';
 import { warpgrepTool } from './warpgrep.js';
 import { recallTool } from './recall.js';
+import { agentManagerTool } from './agent-manager.js';
 
 // All built-in tools
 export const builtInTools = [
@@ -63,11 +64,25 @@ export const builtInTools = [
 ] as const;
 
 /**
+ * Experimental tools (not registered by default)
+ */
+export const experimentalTools = [agentManagerTool] as const;
+
+/**
  * Register all built-in tools
  */
 export function registerBuiltInTools(): void {
   for (const tool of builtInTools) {
     // Cast needed because tools have different parameter schemas
+    registerTool(tool as Tool<any, any>);
+  }
+}
+
+/**
+ * Register experimental tools
+ */
+export function registerExperimentalTools(): void {
+  for (const tool of experimentalTools) {
     registerTool(tool as Tool<any, any>);
   }
 }
@@ -101,6 +116,7 @@ export {
   recallMemoryTool,
   warpgrepTool,
   recallTool,
+  agentManagerTool,
 };
 
 // Re-export UI utilities from specific tools

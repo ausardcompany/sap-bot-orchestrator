@@ -1,0 +1,16 @@
+The Agent Manager tool allows you to create and manage parallel agent tasks.
+
+Each task runs in an isolated git worktree, allowing multiple agents to work
+on different parts of a codebase simultaneously without conflicts.
+
+Actions:
+- create: Start a new agent task with a specific prompt
+- list: View all running agent tasks
+- status: Check the progress of a specific task
+- terminate: Stop a running task
+
+Example usage:
+- Create task: agent_manager(action="create", worktree="feature-x", prompt="Implement feature X")
+- List tasks: agent_manager(action="list")
+- Check status: agent_manager(action="status", taskId="abc-123")
+- Stop task: agent_manager(action="terminate", taskId="abc-123")

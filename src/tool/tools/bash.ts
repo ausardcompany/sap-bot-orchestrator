@@ -28,6 +28,54 @@ interface BashResult {
 const DEFAULT_TIMEOUT = 120000; // 2 minutes
 
 /**
+ * Shell operators that could enable command injection
+ */
+const BLOCKED_SHELL_OPERATORS = [
+  '&&',
+  '||',
+  ';',
+  '|',
+  '`',
+  '$(',
+  '>',
+  '>>',
+  '<',
+  '<<',
+  '2>',
+  '2>>',
+  '&>',
+  '&>>',
+];
+
+/**
+ * Escape special regex characters
+ */
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\const DEFAULT_TIMEOUT = 120000; // 2 minutes
+
+/**
+ * Processes carriage returns in command output.
+ * Handles Windows-style line endings and progress indicators that use \r.
+ */
+function processCarriageReturns(output: string): string {');
+}
+
+/**
+ * Check if command contains blocked shell operators outside of quotes
+ */
+function containsBlockedOperator(command: string): string | null {
+  for (const op of BLOCKED_SHELL_OPERATORS) {
+    // Simple check: look for operator not inside quotes
+    // This is a basic implementation - a full parser would be more robust
+    const regex = new RegExp(`(?<!['"\\\\])${escapeRegExp(op)}(?!['"\\\\])`);
+    if (regex.test(command)) {
+      return op;
+    }
+  }
+  return null;
+}
+
+/**
  * Processes carriage returns in command output.
  * Handles Windows-style line endings and progress indicators that use \r.
  */
@@ -66,6 +114,21 @@ Usage:
   },
 
   async execute(params, context): Promise<ToolResult<BashResult>> {
+    // Security: Block shell operators that could enable command injection
+    const blockedOp = containsBlockedOperator(params.command);
+    if (blockedOp) {
+      return {
+        success: false,
+        error: `Shell operator '${blockedOp}' is not allowed. Please use separate commands or the batch tool for multiple commands.`,
+        data: {
+          stdout: '',
+          stderr: `Shell operator '${blockedOp}' is not allowed. Please use separate commands.`,
+          exitCode: 1,
+          timedOut: false,
+        },
+      };
+    }
+
     const workdir = params.workdir
       ? path.isAbsolute(params.workdir)
         ? params.workdir
