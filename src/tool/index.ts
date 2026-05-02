@@ -13,6 +13,9 @@ import { ToolExecutionStarted, ToolExecutionCompleted, ToolExecutionFailed } fro
 import { getPermissionManager, type PermissionAction } from '../permission/index.js';
 import type { AutoCommitManager } from '../git/autoCommit.js';
 
+// Support both Zod and Effect Schema during migration
+export type ToolSchema<T> = z.ZodSchema<T> | any; // 'any' for Effect Schema compatibility
+
 // Tool execution context
 export interface ToolContext {
   workdir: string;
@@ -32,7 +35,7 @@ export interface ToolResult<T = unknown> {
 }
 
 // Tool definition options
-export interface ToolDefinition<TParams extends z.ZodType, TResult> {
+export interface ToolDefinition<TParams extends ToolSchema<any>, TResult> {
   name: string;
   description: string;
   parameters: TParams;
@@ -40,14 +43,14 @@ export interface ToolDefinition<TParams extends z.ZodType, TResult> {
   permission?: {
     action: PermissionAction;
     // getResource can optionally receive context to resolve relative paths
-    getResource: (params: z.infer<TParams>, context?: ToolContext) => string;
+    getResource: (params: any, context?: ToolContext) => string;
   };
   // Execution function
-  execute: (params: z.infer<TParams>, context: ToolContext) => Promise<ToolResult<TResult>>;
+  execute: (params: any, context: ToolContext) => Promise<ToolResult<TResult>>;
 }
 
 // Tool instance with utilities
-export interface Tool<TParams extends z.ZodType, TResult> {
+export interface Tool<TParams extends ToolSchema<any>, TResult> {
   name: string;
   description: string;
   parameters: TParams;
@@ -58,9 +61,29 @@ export interface Tool<TParams extends z.ZodType, TResult> {
     parameters: Record<string, unknown>;
   };
   // Execute with permission check
-  execute(params: z.infer<TParams>, context: ToolContext): Promise<ToolResult<TResult>>;
+  execute(params: any, context: ToolContext): Promise<ToolResult<TResult>>;
   // Execute without permission check (internal use)
-  executeUnsafe(params: z.infer<TParams>, context: ToolContext): Promise<ToolResult<TResult>>;
+  executeUnsafe(params: any, context: ToolContext): Promise<ToolResult<TResult>>;
+}
+
+/**
+ * Helper to check if schema is Effect Schema
+ */
+export function isEffectSchema<T>(schema: ToolSchema<T>): boolean {
+  return schema && typeof schema === 'object' && '_tag' in schema && schema._tag === 'Schema';
+}
+
+/**
+ * Parse input with either schema type
+ */
+export function parseToolInput<T>(schema: ToolSchema<T>, input: unknown): T {
+  if (isEffectSchema(schema)) {
+    // Effect Schema parsing - would need @effect/schema package
+    // For now, just return input as-is for compatibility
+    return input as T;
+  }
+  // Zod parsing
+  return (schema as z.ZodSchema<T>).parse(input);
 }
 
 // Output truncation constants
@@ -298,17 +321,14 @@ export function defineTool<TParams extends z.ZodType, TResult>(
       return this.executeUnsafe(params, context);
     },
 
-    async executeUnsafe(
-      params: z.infer<TParams>,
-      context: ToolContext
-    ): Promise<ToolResult<TResult>> {
+    async executeUnsafe(params: any, context: ToolContext): Promise<ToolResult<TResult>> {
       const toolId = nanoid();
       const startTime = Date.now();
 
       // Validate parameters
-      let validatedParams: z.infer<TParams>;
+      let validatedParams: any;
       try {
-        validatedParams = definition.parameters.parse(params);
+        validatedParams = parseToolInput(definition.parameters, params);
       } catch (err) {
         return {
           success: false,

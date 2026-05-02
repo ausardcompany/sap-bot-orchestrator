@@ -27,6 +27,50 @@ interface BashResult {
 
 const DEFAULT_TIMEOUT = 120000; // 2 minutes
 
+const BLOCKED_OPERATORS = [
+  '&&',
+  '||',
+  ';',
+  '|',
+  '`',
+  '$(',
+  '>',
+  '>>',
+  '<',
+  '<<',
+  '&>',
+  '2>',
+];
+
+const BLOCKED_PATTERNS = [
+  /\$\{.*\}/, // variable expansion
+  /`.*`/, // backtick command substitution
+];
+
+function validateCommand(command: string): { valid: boolean; reason?: string } {
+  // Check for blocked operators
+  for (const op of BLOCKED_OPERATORS) {
+    if (command.includes(op)) {
+      return {
+        valid: false,
+        reason: `Shell operator '${op}' is not allowed for security reasons`,
+      };
+    }
+  }
+
+  // Check for blocked patterns
+  for (const pattern of BLOCKED_PATTERNS) {
+    if (pattern.test(command)) {
+      return {
+        valid: false,
+        reason: `Command contains blocked pattern: ${pattern}`,
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
 /**
  * Processes carriage returns in command output.
  * Handles Windows-style line endings and progress indicators that use \r.
@@ -66,6 +110,21 @@ Usage:
   },
 
   async execute(params, context): Promise<ToolResult<BashResult>> {
+    // Validate command for security
+    const validation = validateCommand(params.command);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: validation.reason,
+        data: {
+          stdout: '',
+          stderr: validation.reason || 'Command validation failed',
+          exitCode: 1,
+          timedOut: false,
+        },
+      };
+    }
+
     const workdir = params.workdir
       ? path.isAbsolute(params.workdir)
         ? params.workdir

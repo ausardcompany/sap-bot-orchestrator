@@ -111,6 +111,22 @@ Usage:
       const offset = Math.max(1, params.offset ?? 1);
       const limit = params.limit ?? MAX_LINES;
 
+      // Validate line numbers
+      if (offset > totalLines) {
+        return {
+          success: true,
+          data: {
+            type: 'file',
+            path: filePath,
+            content: '',
+            totalLines,
+            shownLines: 0,
+            offset,
+          },
+          hint: `Offset ${offset} exceeds total lines (${totalLines})`,
+        };
+      }
+
       // Extract requested lines
       const startIdx = offset - 1;
       const endIdx = Math.min(startIdx + limit, lines.length);
@@ -135,7 +151,9 @@ Usage:
         truncated: wasTruncated,
         hint: wasTruncated
           ? `Output truncated. Use offset=${endIdx + 1} to continue reading.`
-          : undefined,
+          : endIdx < totalLines
+            ? `Showing lines ${offset}-${endIdx} of ${totalLines}. Use offset=${endIdx + 1} to continue.`
+            : undefined,
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
