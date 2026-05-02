@@ -2,6 +2,47 @@ import path from 'path';
 import { getGlobalPaths } from '../utils/global.js';
 
 /**
+ * Command approval configuration
+ */
+export interface CommandApproval {
+  command: string;
+  pattern: string; // glob pattern for command matching
+  approvedAt: number;
+  scope: 'session' | 'project' | 'global';
+}
+
+/**
+ * Permission state for persistence
+ */
+export interface PermissionState {
+  commandApprovals: CommandApproval[];
+}
+
+/**
+ * Permission store interface
+ */
+export interface PermissionStore {
+  load(): Promise<PermissionState>;
+  save(state: PermissionState): Promise<void>;
+}
+
+/**
+ * Prune stale permission directory entries
+ */
+export function pruneStalePermissions(
+  state: PermissionState,
+  maxAge: number = 30 * 24 * 60 * 60 * 1000 // 30 days
+): PermissionState {
+  const now = Date.now();
+  return {
+    ...state,
+    commandApprovals: state.commandApprovals.filter(
+      (approval) => now - approval.approvedAt < maxAge
+    ),
+  };
+}
+
+/**
  * Config directory prefixes (relative paths, forward-slash normalized).
  * Matches .kilo/, .kilocode/, .opencode/, .alexi/ at any depth within the project.
  */

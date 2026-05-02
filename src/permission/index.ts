@@ -29,6 +29,18 @@ export type PermissionAction = 'read' | 'write' | 'execute' | 'network' | 'admin
 // Permission decision
 export type PermissionDecision = 'allow' | 'deny' | 'ask';
 
+// External directory configuration
+export interface ExternalDirectory {
+  path: string;
+  permissions: PermissionAction[];
+}
+
+// Permission configuration
+export interface PermissionConfig {
+  rules?: PermissionRule[];
+  externalDirectories?: ExternalDirectory[];
+}
+
 // Doom loop configuration
 export interface DoomLoopConfig {
   maxRetries: number; // Max retries for same operation (default: 3)
@@ -123,9 +135,13 @@ export class PermissionManager {
   // External directory control
   private projectRoot: string = process.cwd();
   private allowExternalDirectories: boolean = false;
+  private externalDirectories: ExternalDirectory[] = [];
 
-  constructor(rules: PermissionRule[] = []) {
+  constructor(rules: PermissionRule[] = [], config?: PermissionConfig) {
     this.rules = this.sortRules(rules);
+    if (config?.externalDirectories) {
+      this.externalDirectories = config.externalDirectories;
+    }
   }
 
   /**
@@ -453,7 +469,22 @@ export class PermissionManager {
    * Enhanced with doom loop detection and external path checking
    */
   async check(ctx: PermissionContext): Promise<PermissionResult> {
-    // Check for doom loop first
+    // Check external directory allows first
+    if (ctx.action !== 'network') {
+      const externalAllow = this.externalDirectories.find((dir) =>
+        ctx.resource.startsWith(dir.path)
+      );
+
+      if (externalAllow) {
+        // Honor read-only external directory allows
+        if (externalAllow.permissions.includes(ctx.action)) {
+          return { decision: 'allow', granted: true };
+        }
+        // If operation not in permissions, fall through to normal check
+      }
+    }
+
+    // Check for doom loop
     const loopCheck = this.checkDoomLoop(ctx);
     if (loopCheck.isLoop) {
       const loopResult = this.handleDoomLoop(ctx, loopCheck.attempts);
@@ -656,6 +687,23 @@ export function getPermissionManager(): PermissionManager {
 
 export function setPermissionManager(manager: PermissionManager): void {
   globalPermissionManager = manager;
+}
+
+/**
+ * Check permission with config support
+ */
+export async function checkPermission(
+  path: string,
+  operation: 'read' | 'write' | 'execute',
+  config: PermissionConfig
+): Promise<PermissionResult> {
+  const manager = new PermissionManager(config.rules || [], config);
+  const ctx: PermissionContext = {
+    toolName: 'file',
+    action: operation,
+    resource: path,
+  };
+  return manager.check(ctx);
 }
 
 // Export prompt functionality

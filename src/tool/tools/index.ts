@@ -30,6 +30,8 @@ import { batchTool } from './batch.js';
 import { storeMemoryTool, recallMemoryTool } from './memory.js';
 import { warpgrepTool } from './warpgrep.js';
 import { recallTool } from './recall.js';
+import { agentManagerTool } from './agent-manager.js';
+import { semanticSearchTool } from './semantic-search.js';
 
 // All built-in tools
 export const builtInTools = [
@@ -61,6 +63,20 @@ export const builtInTools = [
   warpgrepTool,
   recallTool,
 ] as const;
+
+// Experimental tools that can be enabled via config
+export const experimentalTools = [agentManagerTool, semanticSearchTool] as const;
+
+/**
+ * Get tools based on configuration
+ */
+export function getTools(config: { enableExperimental?: boolean } = {}): Tool<any, any>[] {
+  const tools = [...builtInTools];
+  if (config.enableExperimental) {
+    tools.push(...experimentalTools);
+  }
+  return tools as Tool<any, any>[];
+}
 
 /**
  * Register all built-in tools
@@ -101,6 +117,8 @@ export {
   recallMemoryTool,
   warpgrepTool,
   recallTool,
+  agentManagerTool,
+  semanticSearchTool,
 };
 
 // Re-export UI utilities from specific tools
