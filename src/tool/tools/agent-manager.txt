@@ -1,0 +1,12 @@
+The agent_manager tool allows you to manage parallel task execution through git worktrees.
+
+Use this tool when:
+- You need to work on multiple independent tasks simultaneously
+- You want to isolate changes for different features
+- You need to switch context between tasks
+
+Actions:
+- create: Set up a new worktree with a fresh session
+- list: See all active worktrees and their status
+- switch: Change to a different worktree context
+- delete: Clean up completed worktrees

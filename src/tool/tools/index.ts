@@ -30,6 +30,7 @@ import { batchTool } from './batch.js';
 import { storeMemoryTool, recallMemoryTool } from './memory.js';
 import { warpgrepTool } from './warpgrep.js';
 import { recallTool } from './recall.js';
+import { agentManagerTool } from './agent-manager.js';
 
 // All built-in tools
 export const builtInTools = [
@@ -60,6 +61,7 @@ export const builtInTools = [
   recallMemoryTool,
   warpgrepTool,
   recallTool,
+  // agentManagerTool, // Experimental - enable explicitly if needed
 ] as const;
 
 /**
@@ -101,6 +103,7 @@ export {
   recallMemoryTool,
   warpgrepTool,
   recallTool,
+  agentManagerTool,
 };
 
 // Re-export UI utilities from specific tools
