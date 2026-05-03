@@ -7,9 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Agent Manager Tool** — Experimental tool for managing parallel task execution via git worktrees (commented out by default)
+- **Bash Tool Security** — Command injection prevention guards blocking shell operators (`;`, `&&`, `||`, `|`, `>`, `>>`, `<`, `` ` ``, `$(`)
+- **Bash Tool Security** — Blocked dangerous command flags (e.g., `sort -o`, `sort --output`)
+- **Security Test Coverage** — 12 new tests for bash tool security features
+
 ### Changed
 - Updated write tool logic to improve code formatting and readability in BOM handling for UTF-8 files. The conditional that strips a leading BOM from content is now formatted for clarity and robustness.
 
+### Security
+- **[CRITICAL]** Bash tool now blocks shell operators to prevent command injection attacks
+- **[HIGH]** Bash tool now blocks dangerous command flags that could enable file overwrite attacks
 
 ### Fixed
 - Resolved ESLint naming conflicts in tool schema definitions by using private schema constants with underscore prefixes.

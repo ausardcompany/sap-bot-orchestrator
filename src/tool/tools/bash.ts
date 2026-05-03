@@ -27,6 +27,38 @@ interface BashResult {
 
 const DEFAULT_TIMEOUT = 120000; // 2 minutes
 
+// Security: Blocked shell operators to prevent command injection
+const BLOCKED_SHELL_OPERATORS = [';', '&&', '||', '|', '>', '>>', '<', '`', '$('];
+
+/**
+ * Check if command contains blocked shell operators
+ */
+function containsBlockedOperator(command: string): boolean {
+  return BLOCKED_SHELL_OPERATORS.some((op) => command.includes(op));
+}
+
+// Security: Blocked command flags
+const BLOCKED_FLAGS = [{ command: 'sort', flags: ['-o', '--output'] }];
+
+/**
+ * Check if command uses blocked flags
+ */
+function hasBlockedFlags(command: string): { blocked: boolean; reason?: string } {
+  for (const rule of BLOCKED_FLAGS) {
+    if (command.startsWith(rule.command) || command.includes(` ${rule.command} `)) {
+      for (const flag of rule.flags) {
+        if (command.includes(flag)) {
+          return {
+            blocked: true,
+            reason: `Flag '${flag}' is not allowed with '${rule.command}' command`,
+          };
+        }
+      }
+    }
+  }
+  return { blocked: false };
+}
+
 /**
  * Processes carriage returns in command output.
  * Handles Windows-style line endings and progress indicators that use \r.
@@ -66,6 +98,23 @@ Usage:
   },
 
   async execute(params, context): Promise<ToolResult<BashResult>> {
+    // Security: Block shell operators to prevent command chaining
+    if (containsBlockedOperator(params.command)) {
+      return {
+        success: false,
+        error: 'Command contains blocked shell operators. Use separate commands instead.',
+      };
+    }
+
+    // Security: Check for blocked flags
+    const flagCheck = hasBlockedFlags(params.command);
+    if (flagCheck.blocked) {
+      return {
+        success: false,
+        error: flagCheck.reason,
+      };
+    }
+
     const workdir = params.workdir
       ? path.isAbsolute(params.workdir)
         ? params.workdir
