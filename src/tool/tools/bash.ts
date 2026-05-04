@@ -8,6 +8,77 @@ import { StringDecoder } from 'node:string_decoder';
 import * as path from 'path';
 import { defineTool, truncateOutput, persistLargeOutput, type ToolResult } from '../index.js';
 
+// Blocked command patterns
+const BLOCKED_COMMANDS = ['rm -rf /', 'mkfs', 'dd if=', 'dd of='];
+
+// Shell operators that could be used for command injection
+const SHELL_SEPARATORS = [';', '&&', '||', '|', '&', '\n', '$(', '`', '<(', '>('];
+const REDIRECT_OPERATORS = ['>', '>>', '<', '<<', '2>', '2>>', '&>', '&>>'];
+
+/**
+ * Command validation result
+ */
+export interface CommandValidationResult {
+  valid: boolean;
+  reason?: string;
+  sanitized?: string;
+}
+
+/**
+ * Validate command for security issues
+ */
+export function validateCommand(command: string): CommandValidationResult {
+  // Check for blocked commands
+  for (const blocked of BLOCKED_COMMANDS) {
+    if (command.includes(blocked)) {
+      return { valid: false, reason: `Blocked command pattern: ${blocked}` };
+    }
+  }
+
+  // Check for shell separators (command chaining)
+  for (const separator of SHELL_SEPARATORS) {
+    if (command.includes(separator)) {
+      return {
+        valid: false,
+        reason: `Shell operator not allowed: ${separator}. Execute commands separately.`,
+      };
+    }
+  }
+
+  // Check for output redirection that could overwrite files
+  for (const redirect of REDIRECT_OPERATORS) {
+    // Allow reading from files with < but not writing
+    if (redirect !== '<' && command.includes(redirect)) {
+      // Check if it's part of a heredoc (allowed)
+      const heredocPattern = /<<[-']?\w+/;
+      if (redirect === '<<' && heredocPattern.test(command)) {
+        continue;
+      }
+      return {
+        valid: false,
+        reason: `Output redirection not allowed: ${redirect}. Use write_file tool instead.`,
+      };
+    }
+  }
+
+  // Check for sort output flag which can overwrite files
+  if (/\bsort\b.*-o\b/.test(command)) {
+    return {
+      valid: false,
+      reason: 'sort -o flag not allowed. Use write_file tool for output.',
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Sanitize command by removing null bytes
+ */
+export function sanitizeCommand(command: string): string {
+  return command.replace(/\0/g, '');
+}
+
 const BashParamsSchema = z.object({
   command: z.string().describe('The command to execute'),
   workdir: z.string().optional().describe('Working directory for command execution'),
@@ -66,6 +137,18 @@ Usage:
   },
 
   async execute(params, context): Promise<ToolResult<BashResult>> {
+    // Validate command for security issues
+    const validation = validateCommand(params.command);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: `Command validation failed: ${validation.reason}`,
+      };
+    }
+
+    // Sanitize command
+    const sanitizedCommand = sanitizeCommand(params.command);
+
     const workdir = params.workdir
       ? path.isAbsolute(params.workdir)
         ? params.workdir
@@ -83,7 +166,7 @@ Usage:
       const stdoutDecoder = new StringDecoder('utf8');
       const stderrDecoder = new StringDecoder('utf8');
 
-      const proc = spawn(params.command, {
+      const proc = spawn(sanitizedCommand, {
         shell: true,
         cwd: workdir,
         env: { ...process.env, FORCE_COLOR: '0' },

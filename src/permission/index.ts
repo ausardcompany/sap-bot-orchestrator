@@ -29,6 +29,14 @@ export type PermissionAction = 'read' | 'write' | 'execute' | 'network' | 'admin
 // Permission decision
 export type PermissionDecision = 'allow' | 'deny' | 'ask';
 
+// External directory permission schema
+export const ExternalDirectoryPermissionSchema = z.object({
+  path: z.string().describe('Directory path'),
+  mode: z.enum(['read', 'write', 'readwrite']).describe('Permission mode'),
+});
+
+export type ExternalDirectoryPermission = z.infer<typeof ExternalDirectoryPermissionSchema>;
+
 // Doom loop configuration
 export interface DoomLoopConfig {
   maxRetries: number; // Max retries for same operation (default: 3)
@@ -123,6 +131,7 @@ export class PermissionManager {
   // External directory control
   private projectRoot: string = process.cwd();
   private allowExternalDirectories: boolean = false;
+  private externalDirectoryPermissions: ExternalDirectoryPermission[] = [];
 
   constructor(rules: PermissionRule[] = []) {
     this.rules = this.sortRules(rules);
@@ -275,6 +284,33 @@ export class PermissionManager {
   }
 
   /**
+   * Add an external directory permission
+   */
+  addExternalDirectoryPermission(permission: ExternalDirectoryPermission): void {
+    const validated = ExternalDirectoryPermissionSchema.parse(permission);
+    this.externalDirectoryPermissions.push(validated);
+  }
+
+  /**
+   * Remove an external directory permission
+   */
+  removeExternalDirectoryPermission(dirPath: string): boolean {
+    const idx = this.externalDirectoryPermissions.findIndex((p) => p.path === dirPath);
+    if (idx >= 0) {
+      this.externalDirectoryPermissions.splice(idx, 1);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Get all external directory permissions
+   */
+  getExternalDirectoryPermissions(): ExternalDirectoryPermission[] {
+    return [...this.externalDirectoryPermissions];
+  }
+
+  /**
    * Check if a path is external to the project
    * Uses enhanced path containment checking with symlink resolution
    */
@@ -317,9 +353,44 @@ export class PermissionManager {
           granted: false,
         };
       }
+
+      // Check explicit external directory permissions
+      const normalizedPath = this.normalizePath(ctx.resource);
+      for (const perm of this.externalDirectoryPermissions) {
+        const permPath = this.normalizePath(perm.path);
+        if (normalizedPath.startsWith(permPath) || normalizedPath === permPath) {
+          // Check if the operation is allowed
+          if (perm.mode === 'readwrite') {
+            return null; // Allow, continue with normal rule evaluation
+          }
+          if (perm.mode === 'read' && ctx.action === 'read') {
+            return null; // Allow, continue with normal rule evaluation
+          }
+          if (perm.mode === 'write' && ctx.action === 'write') {
+            return null; // Allow, continue with normal rule evaluation
+          }
+          // Found a matching permission but operation not allowed
+          return {
+            decision: 'deny',
+            granted: false,
+          };
+        }
+      }
     }
 
     return null;
+  }
+
+  /**
+   * Normalize path for comparison
+   */
+  private normalizePath(pathStr: string): string {
+    // Handle Windows drive letters and normalize separators
+    return path
+      .resolve(pathStr)
+      .replace(/\\/g, '/')
+      .replace(/\/+/g, '/')
+      .replace(/\/$/, '');
   }
 
   // ============ Enhanced Pattern Matching ============
