@@ -27,6 +27,49 @@ interface BashResult {
 
 const DEFAULT_TIMEOUT = 120000; // 2 minutes
 
+// Security: Block shell operators to prevent command injection
+const BLOCKED_OPERATORS = ['&&', '||', ';', '|', '>', '>>', '<', '<<', '&', '$(', '`'];
+
+const BLOCKED_SORT_FLAGS = ['-o', '--output'];
+
+/**
+ * Validate command for security issues
+ */
+function validateCommand(command: string): { valid: boolean; error?: string } {
+  // Check for shell operators
+  for (const op of BLOCKED_OPERATORS) {
+    if (command.includes(op)) {
+      return {
+        valid: false,
+        error: `Shell operator "${op}" is not allowed. Execute commands separately.`,
+      };
+    }
+  }
+
+  // Check for sort output flag (can overwrite files)
+  const args = command.split(/\s+/);
+  if (args[0] === 'sort') {
+    for (const flag of BLOCKED_SORT_FLAGS) {
+      if (args.includes(flag)) {
+        return {
+          valid: false,
+          error: `The sort "${flag}" flag is not allowed as it can overwrite files.`,
+        };
+      }
+    }
+  }
+
+  // Check for shell separators outside quoted strings
+  if (/[;&|]/.test(command) && !command.includes("'") && !command.includes('"')) {
+    return {
+      valid: false,
+      error: 'Shell separators are not allowed outside of quoted strings.',
+    };
+  }
+
+  return { valid: true };
+}
+
 /**
  * Processes carriage returns in command output.
  * Handles Windows-style line endings and progress indicators that use \r.
@@ -66,6 +109,15 @@ Usage:
   },
 
   async execute(params, context): Promise<ToolResult<BashResult>> {
+    // Validate command for security issues
+    const validation = validateCommand(params.command);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: validation.error,
+      };
+    }
+
     const workdir = params.workdir
       ? path.isAbsolute(params.workdir)
         ? params.workdir

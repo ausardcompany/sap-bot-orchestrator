@@ -2,6 +2,10 @@
  * Tool System
  * Defines tools for AI agent actions with lazy initialization
  * Based on kilocode/opencode Tool.define() pattern
+ * 
+ * Note: Alexi uses Zod for schema validation, while upstream kilocode
+ * has migrated to Effect Schema. This is intentional to maintain
+ * SAP AI Core compatibility and avoid the Effect ecosystem dependency.
  */
 
 import { z } from 'zod';
@@ -450,6 +454,13 @@ export {
   cleanupToolOutputs,
   TOOL_OUTPUT_DIR,
 };
+
+// Re-export truncation config utilities
+export {
+  type TruncationConfig,
+  truncateOutputWithConfig,
+  getTruncationConfig,
+} from './truncate.js';
 
 // Re-export schema types
 export type {

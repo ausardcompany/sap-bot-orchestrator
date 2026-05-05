@@ -14,9 +14,31 @@ import {
 } from '../encoded-io.js';
 
 const ReadParamsSchema = z.object({
-  filePath: z.string().describe('Absolute path to the file or directory to read'),
-  offset: z.number().optional().describe('Line number to start from (1-indexed)'),
-  limit: z.number().optional().describe('Maximum number of lines to read (default: 2000)'),
+  filePath: z.string().min(1, 'filePath must not be empty').describe('Absolute path to the file or directory to read'),
+  offset: z
+    .number()
+    .int('offset must be an integer')
+    .positive('offset must be positive')
+    .optional()
+    .describe('Line number to start from (1-indexed)'),
+  limit: z
+    .number()
+    .int('limit must be an integer')
+    .positive('limit must be positive')
+    .optional()
+    .describe('Maximum number of lines to read (default: 2000)'),
+  startLine: z
+    .number()
+    .int('startLine must be an integer')
+    .positive('startLine must be positive')
+    .optional()
+    .describe('Alias for offset - starting line number (1-indexed)'),
+  endLine: z
+    .number()
+    .int('endLine must be an integer')
+    .positive('endLine must be positive')
+    .optional()
+    .describe('Ending line number (inclusive)'),
 });
 
 interface ReadFileResult {
@@ -108,12 +130,41 @@ Usage:
       const lines = content.split('\n');
       const totalLines = lines.length;
 
-      const offset = Math.max(1, params.offset ?? 1);
-      const limit = params.limit ?? MAX_LINES;
+      // Support both offset/limit and startLine/endLine patterns
+      let startIdx: number;
+      let endIdx: number;
 
-      // Extract requested lines
-      const startIdx = offset - 1;
-      const endIdx = Math.min(startIdx + limit, lines.length);
+      if (params.startLine !== undefined || params.endLine !== undefined) {
+        // Use startLine/endLine pattern
+        const start = params.startLine ?? 1;
+        const end = params.endLine ?? totalLines;
+
+        // Validate line range
+        if (start > end) {
+          return {
+            success: false,
+            error: `startLine (${start}) cannot be greater than endLine (${end})`,
+          };
+        }
+
+        if (start > totalLines) {
+          return {
+            success: false,
+            error: `startLine (${start}) exceeds file length (${totalLines} lines)`,
+          };
+        }
+
+        startIdx = Math.max(0, start - 1);
+        endIdx = Math.min(end, totalLines);
+      } else {
+        // Use offset/limit pattern
+        const offset = Math.max(1, params.offset ?? 1);
+        const limit = params.limit ?? MAX_LINES;
+
+        startIdx = offset - 1;
+        endIdx = Math.min(startIdx + limit, lines.length);
+      }
+
       const selectedLines = lines.slice(startIdx, endIdx);
 
       // Add line numbers
@@ -130,7 +181,7 @@ Usage:
           content: truncated,
           totalLines,
           shownLines: selectedLines.length,
-          offset,
+          offset: startIdx + 1,
         },
         truncated: wasTruncated,
         hint: wasTruncated

@@ -22,6 +22,10 @@ import {
 } from '../bus/index.js';
 import { ConfigProtection } from './config-paths.js';
 import { containsPath, safePathCheck } from '../utils/filesystem.js';
+import {
+  type ExternalDirectoryPermission,
+  shouldAutoApproveForExternalDirectory,
+} from './external-directory.js';
 
 // Permission action types
 export type PermissionAction = 'read' | 'write' | 'execute' | 'network' | 'admin';
@@ -123,6 +127,8 @@ export class PermissionManager {
   // External directory control
   private projectRoot: string = process.cwd();
   private allowExternalDirectories: boolean = false;
+  private externalDirectoryPermissions: ExternalDirectoryPermission[] = [];
+  private currentMode: string = 'code'; // Current agent mode
 
   constructor(rules: PermissionRule[] = []) {
     this.rules = this.sortRules(rules);
@@ -275,6 +281,34 @@ export class PermissionManager {
   }
 
   /**
+   * Set external directory permissions for Ask mode
+   */
+  setExternalDirectoryPermissions(permissions: ExternalDirectoryPermission[]): void {
+    this.externalDirectoryPermissions = permissions;
+  }
+
+  /**
+   * Get external directory permissions
+   */
+  getExternalDirectoryPermissions(): ExternalDirectoryPermission[] {
+    return [...this.externalDirectoryPermissions];
+  }
+
+  /**
+   * Set current agent mode
+   */
+  setCurrentMode(mode: string): void {
+    this.currentMode = mode;
+  }
+
+  /**
+   * Get current agent mode
+   */
+  getCurrentMode(): string {
+    return this.currentMode;
+  }
+
+  /**
    * Check if a path is external to the project
    * Uses enhanced path containment checking with symlink resolution
    */
@@ -294,6 +328,7 @@ export class PermissionManager {
 
   /**
    * Handle external path access
+   * Enhanced to support external directory permissions in Ask mode
    */
   private handleExternalPath(ctx: PermissionContext): PermissionResult | null {
     // Only check for file-related actions
@@ -304,6 +339,31 @@ export class PermissionManager {
     const isExternal = this.isExternalPath(ctx.resource);
 
     if (isExternal) {
+      // Check if auto-approved via external directory permissions
+      if (this.externalDirectoryPermissions.length > 0) {
+        const requestedAccess = ctx.action === 'write' ? 'write' : 'read';
+        const autoApproved = shouldAutoApproveForExternalDirectory(
+          ctx.resource,
+          requestedAccess,
+          this.currentMode,
+          this.externalDirectoryPermissions
+        );
+
+        if (autoApproved) {
+          // Publish external access event
+          ExternalAccessAttempted.publish({
+            path: ctx.resource,
+            allowed: true,
+            timestamp: Date.now(),
+          });
+
+          return {
+            decision: 'allow',
+            granted: true,
+          };
+        }
+      }
+
       // Publish external access event
       ExternalAccessAttempted.publish({
         path: ctx.resource,
@@ -660,3 +720,6 @@ export function setPermissionManager(manager: PermissionManager): void {
 
 // Export prompt functionality
 export { startPermissionPromptHandler, isPermissionPromptSupported } from './prompt.js';
+
+// Export external directory types
+export type { ExternalDirectoryPermission } from './external-directory.js';
