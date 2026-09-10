@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Escape backticks in board migration SQL comments** (`src/core/database/migrations/20260828074139_kilocode_board.ts`, commit `2aabfba0`, autohealing): The `-- Alexi_change:` inline comments inside the `CREATE TABLE IF NOT EXISTS kilo_board` DDL in `BOARD_SCHEMA_STATEMENTS` previously wrapped the identifiers `cleared_seq` and `20260903104806_kilocode_board_reset` in Markdown-style backticks. Those backticks live inside a JavaScript template literal, so the closing backtick prematurely terminated the string during aggressive tooling passes (shell interpolation, prompt-injected reformatters) and produced a syntactically invalid `BOARD_SCHEMA_STATEMENTS` array. The autohealing pipeline replaced the backtick-wrapped tokens with bare identifiers, keeping the human intent of the comment but making the DDL robust to string-context tooling. No schema change, no behavioural change, no exported surface change — the DDL emitted at runtime is byte-identical apart from the removed backticks inside SQL comments. The `DdlMigrationTx` interface and the `up()` no-op-when-`execute`-unavailable contract are unaffected.
+
+### Changed
+
+- **Version bump** to `1.22.17` (`package.json`) — daily upstream sync release.
+- **Upstream sync tracking** (`.github/last-sync-commits.json`) — advanced `kilocode` fork to `492a2ffa`, `opencode` fork to `830d5eb5`, `claude-code` direct clone to `347b38e4` (all timestamped `2026-09-09T10:58:20Z`).
+
 ## [1.22.16] - 2026-09-08
 
 ### Added
